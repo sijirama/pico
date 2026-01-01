@@ -8,10 +8,13 @@
    ========================================================================= */
 void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y);
 void tensor_add_cpu(struct Tensor* x, struct Tensor* y);
-void tensor_mean_cpu(struct Tensor* x);
+float tensor_mean_cpu(struct Tensor* x);
+float tensor_sum_cpu(struct Tensor* x);
+float tensor_max_cpu(struct Tensor* x);
 
 // ops tables
-static const struct TensorOps tensor_ops_cpu = {tensor_matmul_cpu, tensor_add_cpu, tensor_mean_cpu};
+static const struct TensorOps tensor_ops_cpu = {tensor_matmul_cpu, tensor_add_cpu, tensor_mean_cpu,
+                                                tensor_sum_cpu, tensor_max_cpu};  // cpu functions
 static const struct TensorOps tensor_ops_gpu = {tensor_matmul_cpu, tensor_add_cpu,
                                                 tensor_mean_cpu};  // use cpu functions for now
 
@@ -87,8 +90,14 @@ void tensor_add(struct Tensor* a, struct Tensor* b) {
 void tensor_matmul(struct Tensor* a, struct Tensor* b) {
     a->ops->matmul(a, b);
 }
-void tensor_mean(struct Tensor* a) {
-    a->ops->mean(a);
+float tensor_mean(struct Tensor* a) {
+    return a->ops->mean(a);
+}
+float tensor_sum(struct Tensor* a) {
+    return a->ops->sum(a);
+}
+float tensor_max(struct Tensor* a) {
+    return a->ops->max(a);
 }
 
 /* =========================================================================
@@ -97,13 +106,31 @@ void tensor_mean(struct Tensor* a) {
 void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
     printf("CPU_MATMUL\n");
 };
+
 void tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
-    for(int i = 0; i < x->numel; i++) {
-        x->data[i] = x->data[i] + y->data[i];
-    };
+    printf("CPU_ADD\n");
 };
-void tensor_mean_cpu(struct Tensor* x) {
-    printf("CPU_CONCAT\n");
+
+float tensor_max_cpu(struct Tensor* t) {
+    float max = t->data[0];
+    for(int i = 1; i < t->numel; i++) {
+        if(t->data[i] > max) {
+            max = t->data[i];
+        }
+    }
+    return max;
+};
+
+float tensor_sum_cpu(struct Tensor* t) {
+    float sum = 0;
+    for(int i = 0; i < t->numel; i++) {
+        sum += t->data[i];
+    }
+    return sum;
+};
+
+float tensor_mean_cpu(struct Tensor* t) {
+    return tensor_sum(t) / t->numel;
 };
 
 /* =========================================================================
