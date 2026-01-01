@@ -1,0 +1,26 @@
+# Build artifacts
+obj/
+noir
+pico
+test_noir
+test_pico
+
+# Object files and libraries
+*.o
+*.a
+*.so
+
+# Debugging
+*.dSYM/
+gmon.out
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated
+.DS_Store
+Thumbs.db
