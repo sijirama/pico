@@ -1,8 +1,11 @@
 #include "tensor.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
-// cpu_ops prototypes
+/* =========================================================================
+   BACKEND DISPATCH (Internal)
+   ========================================================================= */
 void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y);
 void tensor_add_cpu(struct Tensor* x, struct Tensor* y);
 void tensor_mean_cpu(struct Tensor* x);
@@ -12,7 +15,100 @@ static const struct TensorOps tensor_ops_cpu = {tensor_matmul_cpu, tensor_add_cp
 static const struct TensorOps tensor_ops_gpu = {tensor_matmul_cpu, tensor_add_cpu,
                                                 tensor_mean_cpu};  // use cpu functions for now
 
-// helper functions
+/* =========================================================================
+   Create tensors
+   ========================================================================= */
+
+struct Tensor* tensor_create(int* shape, int ndim) {
+    struct Tensor* t;
+
+    t = (struct Tensor*)malloc(sizeof(struct Tensor));
+    if(t == NULL) {
+        perror("Memory allocation failed");
+        return NULL;
+    }
+
+    t->ndim = ndim;
+
+    t->shape = malloc(ndim * sizeof(int));
+    t->strides = malloc(ndim * sizeof(int));
+
+    for(int i = 0; i < ndim; i++) {
+        t->shape[i] = shape[i];
+    }
+
+    int total_elements = 1;
+    for(int i = 0; i < ndim; i++) {
+        total_elements *= t->shape[i];
+    }
+    t->data = malloc(total_elements * sizeof(float));
+
+    for(int i = 0; i < total_elements; i++) {
+        t->data[i] = 0.0f;
+    }
+
+    t->numel = total_elements;
+
+    tensor_update_strides(t);
+    tensor_to_cpu(t);
+    return t;
+}
+
+struct Tensor* tensor_from_data(float* existing_data, int* shape, int ndim) {
+    struct Tensor* t = tensor_create(shape, ndim);
+    if(t == NULL)
+        return NULL;
+
+    for(int i = 0; i < t->numel; i++) {
+        t->data[i] = existing_data[i];
+    }
+
+    return t;
+}
+
+void tensor_free(struct Tensor* t) {
+    free(t->data);
+    free(t->shape);
+    free(t->strides);
+    free(t);
+}
+
+/* =========================================================================
+   PUBLIC API (The Wrappers)
+   ========================================================================= */
+void tensor_add(struct Tensor* a, struct Tensor* b) {
+    if(*a->shape != *b->shape) {
+        fprintf(stderr, "Error: Tensor shapes do not match for addition (%d vs %d)\n", *a->shape,
+                *b->shape);
+        return;
+    }
+    a->ops->add(a, b);
+}
+void tensor_matmul(struct Tensor* a, struct Tensor* b) {
+    a->ops->matmul(a, b);
+}
+void tensor_mean(struct Tensor* a) {
+    a->ops->mean(a);
+}
+
+/* =========================================================================
+   CPU BACKEND IMPLEMENTATION
+   ========================================================================= */
+void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
+    printf("CPU_MATMUL\n");
+};
+void tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
+    for(int i = 0; i < x->numel; i++) {
+        x->data[i] = x->data[i] + y->data[i];
+    };
+};
+void tensor_mean_cpu(struct Tensor* x) {
+    printf("CPU_CONCAT\n");
+};
+
+/* =========================================================================
+   CORE UTILITIES & HELPERS
+   ========================================================================= */
 int tensor_ndim(struct Tensor* t) {
     return t->ndim;
 }
@@ -34,21 +130,12 @@ void tensor_update_strides(struct Tensor* t) {
     }
 }
 
-// move to device
+/* =========================================================================
+   DEVICE MANAGEMENT
+   ========================================================================= */
 void tensor_to_cpu(struct Tensor* t) {
     t->ops = (struct TensorOps*)&tensor_ops_cpu;
 }
 void tensor_to_gpu(struct Tensor* t) {
     t->ops = (struct TensorOps*)&tensor_ops_gpu;
 }
-
-// CPU OPS
-void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
-    printf("CPU_MATMUL\n");
-};
-void tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
-    printf("CPU_MATMUL\n");
-};
-void tensor_mean_cpu(struct Tensor* x) {
-    printf("CPU_CONCAT\n");
-};

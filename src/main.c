@@ -1,17 +1,21 @@
+#include <stdio.h>
+
 #include "tensor.h"
 
 int main() {
-    struct Tensor my_tensor;
+    struct Tensor* x = tensor_from_data((float[]){1.1, 2.2, 3.3}, (int[]){3}, 1);
+    struct Tensor* y = tensor_from_data((float[]){1.1, 2.2, 3.3}, (int[]){3}, 1);
 
-    my_tensor.data = (float[]){1.0, 2.0, 3.0, 4.0};
+    tensor_add(x, y);
 
-    tensor_to_cpu(&my_tensor);
+    printf("Resulting Tensor Data:\n");
+    for(int i = 0; i < x->numel; i++) {
+        printf("%f ", x->data[i]);
+    }
+    printf("\n");
 
-    my_tensor.ops->matmul(&my_tensor, &my_tensor);
-
-    tensor_to_gpu(&my_tensor);
-
-    my_tensor.ops->matmul(&my_tensor, &my_tensor);
+    tensor_free(x);
+    tensor_free(y);
 
     return 0;
 }
