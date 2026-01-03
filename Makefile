@@ -49,7 +49,7 @@ run: $(TARGET)
 
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET)
+	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET) a.out 
 
 rebuild: clean all
 

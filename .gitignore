@@ -4,6 +4,8 @@ noir
 pico
 test_noir
 test_pico
+play.c
+a.out
 
 # Object files and libraries
 *.o
