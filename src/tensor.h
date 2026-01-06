@@ -1,4 +1,5 @@
 #pragma once
+#include "autograd.h"
 
 struct Tensor;
 struct TensorOps;
@@ -8,14 +9,6 @@ typedef enum {
     INT32,
     FLOAT64
 } DataType;
-
-typedef enum {
-    NONE, // for leaf tensors 
-    ADD,
-    SUB,
-    MUL,
-    DIV
-} GradientOp;
 
 struct Tensor {
     struct TensorOps* ops;  // operations for the tensor
