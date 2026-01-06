@@ -10,6 +10,14 @@ typedef enum {
     FLOAT64
 } DataType;
 
+typedef enum {
+    NONE,  // for leaf tensors
+    ADD,
+    SUB,
+    MUL,
+    DIV
+} GradientOp;
+
 struct Tensor {
     struct TensorOps* ops;  // operations for the tensor
     float* data;
@@ -36,6 +44,8 @@ struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b);
 float tensor_max(struct Tensor* a);
 float tensor_sum(struct Tensor* a);
 float tensor_mean(struct Tensor* a);
+
+void tensor_backward(struct Tensor* t, float* grad_output);
 
 void tensor_reshape(struct Tensor* a, int * shape, int ndim);
 void tensor_transpose_2d(struct Tensor* a);
