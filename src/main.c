@@ -38,6 +38,8 @@ int main() {
     print_tensor("Original X", x);
     tensor_transpose_2d(x);
     print_tensor("Transpose of X", x);
+    tensor_reshape(x, (int[]){6}, 1);
+    print_tensor("reshape of X", x);
     tensor_free(x);
 
     return 0;
