@@ -12,12 +12,12 @@ int check_broadcast_compatibility(struct Tensor* a, struct Tensor* b);
 /* =========================================================================
    BACKEND DISPATCH (Internal)
    ========================================================================= */
-void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y);
+struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y);
+struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y);
+struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y);
+struct Tensor* tensor_sub_cpu(struct Tensor* x, struct Tensor* y);
+struct Tensor* tensor_add_cpu(struct Tensor* x, struct Tensor* y);
 
-void tensor_dot_cpu(struct Tensor* x, struct Tensor* y);
-void tensor_truediv_cpu(struct Tensor* x, struct Tensor* y);
-void tensor_sub_cpu(struct Tensor* x, struct Tensor* y);
-void tensor_add_cpu(struct Tensor* x, struct Tensor* y);
 float tensor_max_cpu(struct Tensor* x);
 float tensor_sum_cpu(struct Tensor* x);
 float tensor_mean_cpu(struct Tensor* x);
@@ -65,6 +65,14 @@ struct Tensor* tensor_create(int* shape, int ndim) {
 
     t->numel = total_elements;
 
+    // AUTOGRAD INITIALIZATION
+    t->requires_grad = 0;  // Default: no grad needed
+    t->grad = NULL;        // Only allocate when requires_grad = 1
+    t->grad_op = NONE;     // Leaf tensor by default
+    t->num_parents = 0;
+    t->parents = NULL;
+    t->parents_values = NULL;
+
     tensor_update_strides(t);
     tensor_to_cpu(t);
     return t;
@@ -84,45 +92,68 @@ void tensor_free(struct Tensor* t) {
     free(t->data);
     free(t->shape);
     free(t->strides);
+
+    // Free gradient if allocated
+    if(t->grad != NULL) {
+        free(t->grad);
+    }
+
+    // Free parents array (don't free the parent tensors themselves)
+    if(t->parents != NULL) {
+        free(t->parents);
+    }
+
+    // Free cached parent values
+    if(t->parents_values != NULL) {
+        for(int i = 0; i < t->num_parents; i++) {
+            if(t->parents_values[i] != NULL) {
+                free(t->parents_values[i]);
+            }
+        }
+        free(t->parents_values);
+    }
     free(t);
 }
 
 /* =========================================================================
    PUBLIC API (The Wrappers)
    ========================================================================= */
-void tensor_add(struct Tensor* a, struct Tensor* b) {
+struct Tensor* tensor_add(struct Tensor* a, struct Tensor* b) {
     if(!check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "Error: Shapes are not broadcastable!\n");
-        return;
+        return NULL;
     }
-    a->ops->add(a, b);
-}
-void tensor_sub(struct Tensor* a, struct Tensor* b) {
-    if(!check_broadcast_compatibility(a, b)) {
-        fprintf(stderr, "Error: Shapes are not broadcastable!\n");
-        return;
-    }
-    a->ops->sub(a, b);
-}
-void tensor_truediv(struct Tensor* a, struct Tensor* b) {
-    if(!check_broadcast_compatibility(a, b)) {
-        fprintf(stderr, "Error: Shapes are not broadcastable!\n");
-        return;
-    }
-    a->ops->truediv(a, b);
+    return a->ops->add(a, b);
 }
 
-void tensor_dot(struct Tensor* a, struct Tensor* b) {
+struct Tensor* tensor_sub(struct Tensor* a, struct Tensor* b) {
     if(!check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "Error: Shapes are not broadcastable!\n");
-        return;
+        return NULL;
     }
-    a->ops->dot(a, b);
+    return a->ops->sub(a, b);
 }
 
-void tensor_matmul(struct Tensor* a, struct Tensor* b) {
-    a->ops->matmul(a, b);
+struct Tensor* tensor_truediv(struct Tensor* a, struct Tensor* b) {
+    if(!check_broadcast_compatibility(a, b)) {
+        fprintf(stderr, "Error: Shapes are not broadcastable!\n");
+        return NULL;
+    }
+    return a->ops->truediv(a, b);
 }
+
+struct Tensor* tensor_dot(struct Tensor* a, struct Tensor* b) {
+    if(!check_broadcast_compatibility(a, b)) {
+        fprintf(stderr, "Error: Shapes are not broadcastable!\n");
+        return NULL;
+    }
+    return a->ops->dot(a, b);
+}
+
+struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b) {
+    return a->ops->matmul(a, b);
+}
+
 float tensor_mean(struct Tensor* a) {
     return a->ops->mean(a);
 }
@@ -173,11 +204,15 @@ void tensor_transpose_2d(struct Tensor* a) {
    CPU BACKEND IMPLEMENTATION
    ========================================================================= */
 
-void tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
-    printf("CPU_MATMUL\n");
+struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
+    printf("CPU_MATMUL NOT DONE\n");
+    int ndim = MAX(x->ndim, y->ndim);
+    int* res_shape = malloc(sizeof(int) * ndim);
+    struct Tensor* res = tensor_create(res_shape, ndim);
+    return res;
 };
 
-void tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
+struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
@@ -185,29 +220,45 @@ void tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
     int* y_padded_shape = pad_shape(y, ndim);
     int* y_padded_strides = pad_stride(y, ndim);
 
-    // 2. Determine output shape (max of each dimension)
     int* res_shape = malloc(sizeof(int) * ndim);
     for(int i = 0; i < ndim; i++)
         res_shape[i] = MAX(x_padded_shape[i], y_padded_shape[i]);
 
-    // 3. Create a result tensor
     struct Tensor* res = tensor_create(res_shape, ndim);
     tensor_update_strides(res);
 
     for(int i = 0; i < res->numel; i++) {
         int ix = map_index(i, x_padded_shape, x_padded_strides, res->strides, ndim);
         int iy = map_index(i, y_padded_shape, y_padded_strides, res->strides, ndim);
-
         res->data[i] = x->data[ix] * y->data[iy];
     }
 
-    for(int i = 0; i < res->numel; i++) {
-        x->data[i] = res->data[i];
-    }
-    tensor_free(res);
-};
+    // AUTOGRAD: Store operation info
+    res->grad_op = MUL;
+    res->num_parents = 2;
+    res->parents = malloc(sizeof(struct Tensor*) * 2);
+    res->parents[0] = x;
+    res->parents[1] = y;
 
-void tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
+    // Cache parent values for backward pass
+    res->parents_values = malloc(sizeof(float*) * 2);
+    res->parents_values[0] = malloc(sizeof(float) * x->numel);
+    res->parents_values[1] = malloc(sizeof(float) * y->numel);
+    for(int i = 0; i < x->numel; i++)
+        res->parents_values[0][i] = x->data[i];
+    for(int i = 0; i < y->numel; i++)
+        res->parents_values[1][i] = y->data[i];
+
+    free(x_padded_shape);
+    free(x_padded_strides);
+    free(y_padded_shape);
+    free(y_padded_strides);
+    free(res_shape);
+
+    return res;
+}
+
+struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
@@ -215,29 +266,45 @@ void tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
     int* y_padded_shape = pad_shape(y, ndim);
     int* y_padded_strides = pad_stride(y, ndim);
 
-    // 2. Determine output shape (max of each dimension)
     int* res_shape = malloc(sizeof(int) * ndim);
     for(int i = 0; i < ndim; i++)
         res_shape[i] = MAX(x_padded_shape[i], y_padded_shape[i]);
 
-    // 3. Create a result tensor
     struct Tensor* res = tensor_create(res_shape, ndim);
     tensor_update_strides(res);
 
     for(int i = 0; i < res->numel; i++) {
         int ix = map_index(i, x_padded_shape, x_padded_strides, res->strides, ndim);
         int iy = map_index(i, y_padded_shape, y_padded_strides, res->strides, ndim);
-
         res->data[i] = x->data[ix] / y->data[iy];
     }
 
-    for(int i = 0; i < res->numel; i++) {
-        x->data[i] = res->data[i];
-    }
-    tensor_free(res);
-};
+    // AUTOGRAD: Store operation info (add DIV to your enum!)
+    res->grad_op = DIV;
+    res->num_parents = 2;
+    res->parents = malloc(sizeof(struct Tensor*) * 2);
+    res->parents[0] = x;
+    res->parents[1] = y;
 
-void tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
+    // Cache parent values for backward pass
+    res->parents_values = malloc(sizeof(float*) * 2);
+    res->parents_values[0] = malloc(sizeof(float) * x->numel);
+    res->parents_values[1] = malloc(sizeof(float) * y->numel);
+    for(int i = 0; i < x->numel; i++)
+        res->parents_values[0][i] = x->data[i];
+    for(int i = 0; i < y->numel; i++)
+        res->parents_values[1][i] = y->data[i];
+
+    free(x_padded_shape);
+    free(x_padded_strides);
+    free(y_padded_shape);
+    free(y_padded_strides);
+    free(res_shape);
+
+    return res;
+}
+
+struct Tensor* tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
@@ -245,29 +312,45 @@ void tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
     int* y_padded_shape = pad_shape(y, ndim);
     int* y_padded_strides = pad_stride(y, ndim);
 
-    // 2. Determine output shape (max of each dimension)
     int* res_shape = malloc(sizeof(int) * ndim);
     for(int i = 0; i < ndim; i++)
         res_shape[i] = MAX(x_padded_shape[i], y_padded_shape[i]);
 
-    // 3. Create a result tensor
     struct Tensor* res = tensor_create(res_shape, ndim);
     tensor_update_strides(res);
 
     for(int i = 0; i < res->numel; i++) {
         int ix = map_index(i, x_padded_shape, x_padded_strides, res->strides, ndim);
         int iy = map_index(i, y_padded_shape, y_padded_strides, res->strides, ndim);
-
         res->data[i] = x->data[ix] - y->data[iy];
     }
 
-    for(int i = 0; i < res->numel; i++) {
-        x->data[i] = res->data[i];
-    }
-    tensor_free(res);
-};
+    // AUTOGRAD: Store operation info
+    res->grad_op = SUB;
+    res->num_parents = 2;
+    res->parents = malloc(sizeof(struct Tensor*) * 2);
+    res->parents[0] = x;
+    res->parents[1] = y;
 
-void tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
+    // Cache parent values for backward pass
+    res->parents_values = malloc(sizeof(float*) * 2);
+    res->parents_values[0] = malloc(sizeof(float) * x->numel);
+    res->parents_values[1] = malloc(sizeof(float) * y->numel);
+    for(int i = 0; i < x->numel; i++)
+        res->parents_values[0][i] = x->data[i];
+    for(int i = 0; i < y->numel; i++)
+        res->parents_values[1][i] = y->data[i];
+
+    free(x_padded_shape);
+    free(x_padded_strides);
+    free(y_padded_shape);
+    free(y_padded_strides);
+    free(res_shape);
+
+    return res;
+}
+
+struct Tensor* tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
@@ -275,27 +358,43 @@ void tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
     int* y_padded_shape = pad_shape(y, ndim);
     int* y_padded_strides = pad_stride(y, ndim);
 
-    // 2. Determine output shape (max of each dimension)
     int* res_shape = malloc(sizeof(int) * ndim);
     for(int i = 0; i < ndim; i++)
         res_shape[i] = MAX(x_padded_shape[i], y_padded_shape[i]);
 
-    // 3. Create a result tensor
     struct Tensor* res = tensor_create(res_shape, ndim);
     tensor_update_strides(res);
 
     for(int i = 0; i < res->numel; i++) {
         int ix = map_index(i, x_padded_shape, x_padded_strides, res->strides, ndim);
         int iy = map_index(i, y_padded_shape, y_padded_strides, res->strides, ndim);
-
         res->data[i] = x->data[ix] + y->data[iy];
     }
 
-    for(int i = 0; i < res->numel; i++) {
-        x->data[i] = res->data[i];
-    }
-    tensor_free(res);
-};
+    // AUTOGRAD: Store operation info
+    res->grad_op = ADD;
+    res->num_parents = 2;
+    res->parents = malloc(sizeof(struct Tensor*) * 2);
+    res->parents[0] = x;
+    res->parents[1] = y;
+
+    // AUTOGRAD: Cache parent values for backward pass
+    res->parents_values = malloc(sizeof(float*) * 2);
+    res->parents_values[0] = malloc(sizeof(float) * x->numel);
+    res->parents_values[1] = malloc(sizeof(float) * y->numel);
+    for(int i = 0; i < x->numel; i++)
+        res->parents_values[0][i] = x->data[i];
+    for(int i = 0; i < y->numel; i++)
+        res->parents_values[1][i] = y->data[i];
+
+    free(x_padded_shape);
+    free(x_padded_strides);
+    free(y_padded_shape);
+    free(y_padded_strides);
+    free(res_shape);
+
+    return res;  // Return new tensor instead of mutating
+}
 
 // INFO: i don't think max is something that's called a lot
 //       or else binary search would have been beatiful for this, but yh

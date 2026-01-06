@@ -9,6 +9,14 @@ typedef enum {
     FLOAT64
 } DataType;
 
+typedef enum {
+    NONE, // for leaf tensors 
+    ADD,
+    SUB,
+    MUL,
+    DIV
+} GradientOp;
+
 struct Tensor {
     struct TensorOps* ops;  // operations for the tensor
     float* data;
@@ -17,14 +25,21 @@ struct Tensor {
     int* strides;
     int numel;
     int ndim;
+    int requires_grad;
+    GradientOp grad_op;
+    int num_parents;
+    struct Tensor ** parents;
+    float ** parents_values;
+    float* grad;
 };
 
 // High-level API (The Wrappers)
-void tensor_matmul(struct Tensor* a, struct Tensor* b);
-void tensor_dot(struct Tensor* a, struct Tensor* b);
-void tensor_truediv(struct Tensor* a, struct Tensor* b);
-void tensor_sub(struct Tensor* a, struct Tensor* b);
-void tensor_add(struct Tensor* a, struct Tensor* b);
+struct Tensor* tensor_add(struct Tensor* a, struct Tensor* b);
+struct Tensor* tensor_sub(struct Tensor* a, struct Tensor* b);
+struct Tensor* tensor_dot(struct Tensor* a, struct Tensor* b);
+struct Tensor* tensor_truediv(struct Tensor* a, struct Tensor* b);
+struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b);
+
 float tensor_max(struct Tensor* a);
 float tensor_sum(struct Tensor* a);
 float tensor_mean(struct Tensor* a);
@@ -34,11 +49,12 @@ void tensor_transpose_2d(struct Tensor* a);
 void print_tensor(const char* label, struct Tensor* t);
 
 struct TensorOps {
-    void (*matmul)(struct Tensor* x, struct Tensor* y);
-    void (*dot)(struct Tensor* x, struct Tensor* y);
-    void (*truediv)(struct Tensor* x, struct Tensor* y);
-    void (*sub)(struct Tensor* x, struct Tensor* y);
-    void (*add)(struct Tensor* x, struct Tensor* y);
+    struct Tensor* (*matmul)(struct Tensor* x, struct Tensor* y);
+    struct Tensor* (*dot)(struct Tensor* x, struct Tensor* y);
+    struct Tensor* (*truediv)(struct Tensor* x, struct Tensor* y);
+    struct Tensor* (*sub)(struct Tensor* x, struct Tensor* y);
+    struct Tensor* (*add)(struct Tensor* x, struct Tensor* y);
+
     float (*max)(struct Tensor* x);
     float (*sum)(struct Tensor* x);
     float (*mean)(struct Tensor* x);
