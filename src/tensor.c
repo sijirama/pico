@@ -200,6 +200,43 @@ void tensor_transpose_2d(struct Tensor* a) {
     a->strides[0] = sc;
 }
 
+struct Tensor* tensor_clone(struct Tensor* a) {
+    struct Tensor* t;
+
+    t = (struct Tensor*)malloc(sizeof(struct Tensor));
+    if(t == NULL) {
+        perror("Memory allocation failed");
+        return NULL;
+    }
+
+    t->ndim = a->ndim;
+    t->shape = malloc(a->ndim * sizeof(int));
+    t->strides = malloc(a->ndim * sizeof(int));
+
+    for(int i = 0; i < a->ndim; i++) {
+        t->shape[i] = a->shape[i];
+    }
+    t->numel = a->numel;
+    t->data = malloc(a->numel * sizeof(float));
+
+    for(int i = 0; i < a->numel; i++) {
+        t->data[i] = a->data[i];
+    }
+
+    // AUTOGRA SETTINGS
+    t->requires_grad = a->requires_grad;
+    t->grad = NULL;
+    t->grad_op = NONE;
+    t->num_parents = 0;
+    t->parents = NULL;
+    t->parents_values = NULL;
+
+    tensor_update_strides(t);
+    tensor_to_cpu(t);
+
+    return t;
+};
+
 /* =========================================================================
    CPU BACKEND IMPLEMENTATION
    ========================================================================= */

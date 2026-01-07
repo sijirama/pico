@@ -41,6 +41,8 @@ struct Tensor* tensor_dot(struct Tensor* a, struct Tensor* b);
 struct Tensor* tensor_truediv(struct Tensor* a, struct Tensor* b);
 struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b);
 
+struct Tensor* tensor_clone(struct Tensor* a);
+
 float tensor_max(struct Tensor* a);
 float tensor_sum(struct Tensor* a);
 float tensor_mean(struct Tensor* a);

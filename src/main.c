@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "activations.h"
 #include "autograd.h"
 #include "tensor.h"
 
@@ -69,7 +70,13 @@ int main() {
     printf("w2.grad = %.1f\n", w2->grad[0]);
     printf("Expected: dLoss/dw = 2*a*x = 2*6*2 = %.1f\n", 2 * a->data[0] * x2->data[0]);
 
+    struct Tensor* orig = tensor_from_data((float[]){1, 2, 3, -1, -5, -6}, (int[]){6}, 1);
+    struct Tensor* relud = Sigmoid(orig);
+    print_tensor("New Sigmoid tensor", relud);
+
     free(loss_grad);
+    tensor_free(orig);
+    tensor_free(relud);
     tensor_free(x2);
     tensor_free(w2);
     tensor_free(a);
