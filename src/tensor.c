@@ -251,6 +251,7 @@ struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
 
 struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
+    int require_grad = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
     int* x_padded_strides = pad_stride(x, ndim);
@@ -276,6 +277,7 @@ struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
     res->parents = malloc(sizeof(struct Tensor*) * 2);
     res->parents[0] = x;
     res->parents[1] = y;
+    res->requires_grad = require_grad;
 
     // Cache parent values for backward pass
     res->parents_values = malloc(sizeof(float*) * 2);
@@ -297,6 +299,7 @@ struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y) {
 
 struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
+    int require_grad = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
     int* x_padded_strides = pad_stride(x, ndim);
@@ -322,6 +325,7 @@ struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
     res->parents = malloc(sizeof(struct Tensor*) * 2);
     res->parents[0] = x;
     res->parents[1] = y;
+    res->requires_grad = require_grad;
 
     // Cache parent values for backward pass
     res->parents_values = malloc(sizeof(float*) * 2);
@@ -343,6 +347,7 @@ struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y) {
 
 struct Tensor* tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
+    int require_grad = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
     int* x_padded_strides = pad_stride(x, ndim);
@@ -368,6 +373,7 @@ struct Tensor* tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
     res->parents = malloc(sizeof(struct Tensor*) * 2);
     res->parents[0] = x;
     res->parents[1] = y;
+    res->requires_grad = require_grad;
 
     // Cache parent values for backward pass
     res->parents_values = malloc(sizeof(float*) * 2);
@@ -389,6 +395,7 @@ struct Tensor* tensor_sub_cpu(struct Tensor* x, struct Tensor* y) {
 
 struct Tensor* tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
     int ndim = MAX(x->ndim, y->ndim);
+    int require_grad = MAX(x->ndim, y->ndim);
 
     int* x_padded_shape = pad_shape(x, ndim);
     int* x_padded_strides = pad_stride(x, ndim);
@@ -414,6 +421,7 @@ struct Tensor* tensor_add_cpu(struct Tensor* x, struct Tensor* y) {
     res->parents = malloc(sizeof(struct Tensor*) * 2);
     res->parents[0] = x;
     res->parents[1] = y;
+    res->requires_grad = require_grad;
 
     // AUTOGRAD: Cache parent values for backward pass
     res->parents_values = malloc(sizeof(float*) * 2);

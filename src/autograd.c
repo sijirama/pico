@@ -35,7 +35,6 @@ void backward_mul(float* grad_output, struct Tensor* result, float** grad_for_pa
         grad_for_parents[1][i] = grad_output[i] * x_value[i];
     }
 }
-
 void backward_sub(float* grad_output, struct Tensor* result, float** grad_for_parents) {
     // For z = x - y: dz/dx = 1, dz/dy = - 1
     // So both parents get grad_output
@@ -51,7 +50,6 @@ void backward_sub(float* grad_output, struct Tensor* result, float** grad_for_pa
         grad_for_parents[1][i] = -grad_output[i];
     }
 }
-
 void backward_div(float* grad_output, struct Tensor* result, float** grad_for_parents) {
     // For z = x - y: dz/dx = 1/y, dz/dy = - 1
     // So both parents get grad_output
@@ -70,6 +68,16 @@ void backward_div(float* grad_output, struct Tensor* result, float** grad_for_pa
         grad_for_parents[1][i] = grad_output[i] * -(x_value[i] / (y_value[i] * y_value[i]));
     }
 }
+
+/*
+**What each part does:**
+
+- **BASE CASE**: If it's a leaf (grad_op == NONE), accumulate gradient and STOP
+- **Step 1**: Create empty boxes to hold gradients for each parent
+- **Step 2**: Call the operation-specific backward function to FILL those boxes
+- **Step 3**: Pass those gradients to parents and recurse
+- **Step 4**: Clean up temporary memory
+*/
 
 void tensor_backward(struct Tensor* t, float* grad_output) {
     if(t->grad_op == NONE) {
