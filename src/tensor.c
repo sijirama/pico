@@ -151,13 +151,13 @@ struct Tensor* tensor_dot(struct Tensor* a, struct Tensor* b) {
     return a->ops->dot(a, b);
 }
 
-struct Tensor* tensor_matmul2d(struct Tensor* a, struct Tensor* b) {
-    return tensor_matmul2d(a, b);
-}
-
 // NOTE: till i fix it use 2d for now
 struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b) {
-    return tensor_matmul2d(a, b);
+    return tensor_matmul_cpu_2d(a, b);
+}
+
+struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
+    return tensor_matmul_cpu_2d(x, y);  // for now
 }
 
 float tensor_mean(struct Tensor* a) {
@@ -247,19 +247,13 @@ struct Tensor* tensor_clone(struct Tensor* a) {
    CPU BACKEND IMPLEMENTATION
    ========================================================================= */
 
-struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
-    return tensor_matmul_cpu_2d(x, y);  // for now
-}
-
 struct Tensor* tensor_matmul_cpu_2d(struct Tensor* x, struct Tensor* y) {
-    int require_grad = MAX(x->ndim, y->ndim);
-
     if(x->ndim != 2 || y->ndim != 2) {
         perror("2d matmul matrices must both be in the 2nd rank");
         return NULL;
     }
 
-    if(x->shape[-1] != y->shape[0]) {
+    if(x->shape[1] != y->shape[0]) {
         perror("2s matmul matrices must be compatible");
         return NULL;
     }
@@ -299,12 +293,13 @@ struct Tensor* tensor_matmul_cpu_2d(struct Tensor* x, struct Tensor* y) {
     res->parents = malloc(sizeof(struct Tensor*) * 2);
     res->parents[0] = x;
     res->parents[1] = y;
-    res->requires_grad = require_grad;
+    res->requires_grad = x->requires_grad || y->requires_grad;
 
     // Cache parent values for backward pass
     res->parents_values = malloc(sizeof(float*) * 2);
     res->parents_values[0] = malloc(sizeof(float) * x->numel);
     res->parents_values[1] = malloc(sizeof(float) * y->numel);
+
     for(int i = 0; i < x->numel; i++)
         res->parents_values[0][i] = x->data[i];
     for(int i = 0; i < y->numel; i++)
