@@ -15,6 +15,7 @@ typedef enum {
     ADD,
     SUB,
     MUL,
+    MATMUL,
     DIV
 } GradientOp;
 

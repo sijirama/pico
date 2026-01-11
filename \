@@ -12,7 +12,6 @@ int check_broadcast_compatibility(struct Tensor* a, struct Tensor* b);
 /* =========================================================================
    BACKEND DISPATCH (Internal)
    ========================================================================= */
-struct Tensor* tensor_matmul_cpu_2d(struct Tensor* x, struct Tensor* y);
 struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y);
 struct Tensor* tensor_dot_cpu(struct Tensor* x, struct Tensor* y);
 struct Tensor* tensor_truediv_cpu(struct Tensor* x, struct Tensor* y);
@@ -151,13 +150,8 @@ struct Tensor* tensor_dot(struct Tensor* a, struct Tensor* b) {
     return a->ops->dot(a, b);
 }
 
-struct Tensor* tensor_matmul2d(struct Tensor* a, struct Tensor* b) {
-    return tensor_matmul2d(a, b);
-}
-
-// NOTE: till i fix it use 2d for now
 struct Tensor* tensor_matmul(struct Tensor* a, struct Tensor* b) {
-    return tensor_matmul2d(a, b);
+    return a->ops->matmul(a, b);
 }
 
 float tensor_mean(struct Tensor* a) {
@@ -246,10 +240,6 @@ struct Tensor* tensor_clone(struct Tensor* a) {
 /* =========================================================================
    CPU BACKEND IMPLEMENTATION
    ========================================================================= */
-
-struct Tensor* tensor_matmul_cpu(struct Tensor* x, struct Tensor* y) {
-    return tensor_matmul_cpu_2d(x, y);  // for now
-}
 
 struct Tensor* tensor_matmul_cpu_2d(struct Tensor* x, struct Tensor* y) {
     int require_grad = MAX(x->ndim, y->ndim);
