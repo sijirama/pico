@@ -101,6 +101,29 @@ UTEST(arena, reset_after_growth) {
     arena_destroy(a);
 }
 
+// reset must free ALL grown blocks, not just the first one after begin.
+// grow to THREE blocks (begin -> B2 -> B3) then reset. current reset only frees
+// begin->next (B2), so B3 leaks. assertions can't see a leak -> this PASSES under
+// `make test` but FAILS under `make asan` (LeakSanitizer reports the orphaned B3).
+// fix: walk the whole chain after begin and free each (like destroy, but keep begin).
+UTEST(arena, reset_frees_all_grown_blocks) {
+    struct Arena* a = arena_init(64);
+    arena_alloc(a, 64);  // fills begin
+    arena_alloc(a, 64);  // grows -> B2 (and fills it)
+    arena_alloc(a, 64);  // grows -> B3
+    ASSERT_TRUE(a->begin->next != NULL);  // we really did grow past one block
+
+    arena_reset(a);
+
+    // structural state should be back to a single clean block...
+    ASSERT_TRUE(a->end == a->begin);
+    ASSERT_TRUE(a->begin->next == NULL);
+    ASSERT_TRUE(a->begin->curr == a->begin->bottom);
+    // ...but the real check (B3 not leaked) only shows up under `make asan`.
+
+    arena_destroy(a);
+}
+
 // ============================ arena context stack
 
 // with nothing pushed, current should be null

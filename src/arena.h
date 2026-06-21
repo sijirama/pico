@@ -18,11 +18,14 @@ struct Arena {
     struct ArenaBlock *begin, *end;
 };
 
-static thread_local struct Arena* arena_stack[MAX_ARENA_STACK];
-static thread_local int arena_stack_top = -1;  // -1 means empty stack
-                                               // thread_local makes this ctx stack per thread
+// The ctx stack is SHARED mutable state, so it must be ONE real global
+// (extern here, defined once in global.c). It stays thread_local so each
+// thread gets its own stack. (static-in-header would give every .c its own
+// private copy, so ops.c couldn't see what main.c pushed.)
+extern thread_local struct Arena* arena_stack[MAX_ARENA_STACK];
+extern thread_local int arena_stack_top;
 
-struct Arena* arena_init(size_t bytes) {
+static inline struct Arena* arena_init(size_t bytes) {
     struct Arena* arena = (struct Arena*)malloc(sizeof(struct Arena));
     if(arena == NULL) {
         return NULL;
@@ -50,7 +53,7 @@ struct Arena* arena_init(size_t bytes) {
     return arena;
 }
 
-void* arena_block_alloc(struct ArenaBlock* block, size_t size) {
+static inline void* arena_block_alloc(struct ArenaBlock* block, size_t size) {
     size_t used = block->curr - block->bottom;  // how much have we used so far?
 
     if(used + size > block->capacity) {  // bounds check: would this allocation overflow the block?
@@ -62,7 +65,7 @@ void* arena_block_alloc(struct ArenaBlock* block, size_t size) {
     return ptr;
 }
 
-void* arena_block_realloc(struct Arena* arena) {
+static inline void* arena_block_realloc(struct Arena* arena) {
     // create new block and make it arena->end
 
     size_t bytes = arena->begin->capacity;
@@ -89,7 +92,7 @@ void* arena_block_realloc(struct Arena* arena) {
     return block;
 }
 
-void* arena_alloc(struct Arena* arena, size_t size) {
+static inline void* arena_alloc(struct Arena* arena, size_t size) {
     void* ptr = arena_block_alloc(arena->end, size);
     if(ptr == NULL) {
         void* ptr2 = arena_block_realloc(arena);
@@ -102,21 +105,27 @@ void* arena_alloc(struct Arena* arena, size_t size) {
     return ptr;
 }
 
-void arena_block_free(struct ArenaBlock* block) {
+static inline void arena_block_free(struct ArenaBlock* block) {
     free(block->bottom);  // free the actual data block (one real free)
     free(block);
 }
 
-void arena_reset(struct Arena* arena) {
-    arena->begin->curr = arena->begin->bottom;
-    arena->end = arena->begin;
-    if(arena->begin->next != NULL) {
-        arena_block_free(arena->begin->next);
+static inline void arena_reset(struct Arena* arena) {
+    struct ArenaBlock* current = arena->begin->next;  // start AFTER the first block
+    struct ArenaBlock* nextBlock;
+
+    while(current != NULL) {
+        nextBlock = current->next;
+        arena_block_free(current);
+        current = nextBlock;
     }
+
+    arena->begin->curr = arena->begin->bottom;
     arena->begin->next = NULL;
+    arena->end = arena->begin;
 }
 
-void arena_destroy(struct Arena* arena) {
+static inline void arena_destroy(struct Arena* arena) {
     // go through the entire list and delete each block
 
     struct ArenaBlock* current = arena->begin;
@@ -133,16 +142,16 @@ void arena_destroy(struct Arena* arena) {
 
 // ============================ arena context
 
-void arena_ctx_push(struct Arena* arena) {
+static inline void arena_ctx_push(struct Arena* arena) {
     arena_stack_top++;
     arena_stack[arena_stack_top] = arena;
 }
 
-void arena_ctx_pop(void) {
+static inline void arena_ctx_pop(void) {
     arena_stack_top--;
 }
 
-struct Arena* arena_ctx_current(void) {
+static inline struct Arena* arena_ctx_current(void) {
     if(arena_stack_top == -1 || arena_stack_top == MAX_ARENA_STACK) {
         return NULL;
     }
