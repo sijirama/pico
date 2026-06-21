@@ -3,7 +3,8 @@ obj/
 noir
 pico
 test_noir
-test_pico
+test_pico*
+test_pico_asan
 play.c
 a.out
 

@@ -2,13 +2,17 @@
 
 #include <stdint.h>
 
-struct PicoTensor {  // 51 + 5b padding = 56b
+typedef enum { CPU, GPU } PicoBackend;
+
+struct PicoTensor {  // 55 + 1b padding = 56b
     int64_t* shape;
     int64_t* strides;
     float* data;
     float* grad;
     void (*_backward)(struct PicoTensor*);
     struct PicoTensor** parents;
+
+    PicoBackend backend;
     uint8_t ndim;
     uint8_t num_parents;
     uint8_t is_persistent;  // memory malloc'd ?
