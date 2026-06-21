@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -std=c11 -I src -g -Wall
-LDFLAGS = -lm
+CFLAGS = -std=c11 -I src -g -Wall -pthread
+LDFLAGS = -lm -pthread
 
 SRC_DIR = src
 INC_DIR = src
