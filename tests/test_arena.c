@@ -152,7 +152,8 @@ static int arena_thread_body(void* p) {
     arg->ok = 0;
 
     struct Arena* mine = arena_init(64);
-    if(mine == NULL) return 0;
+    if(mine == NULL)
+        return 0;
 
     // this thread's own stack should start empty
     if(arena_ctx_current() != NULL) {

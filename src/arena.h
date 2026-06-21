@@ -110,7 +110,9 @@ void arena_block_free(struct ArenaBlock* block) {
 void arena_reset(struct Arena* arena) {
     arena->begin->curr = arena->begin->bottom;
     arena->end = arena->begin;
-    arena_block_free(arena->begin->next);
+    if(arena->begin->next != NULL) {
+        arena_block_free(arena->begin->next);
+    }
     arena->begin->next = NULL;
 }
 

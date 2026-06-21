@@ -11,6 +11,7 @@ UTEST(pico_param, returns_non_null) {
     int64_t shape[] = {2, 3};
     struct PicoTensor* t = pico_param(shape, 2);
     ASSERT_TRUE(t != NULL);
+    pico_free(t);
 }
 
 // ndim and the persistent flag should be set correctly
@@ -19,6 +20,7 @@ UTEST(pico_param, metadata) {
     struct PicoTensor* t = pico_param(shape, 2);
     ASSERT_EQ(t->ndim, 2);
     ASSERT_EQ(t->is_persistent, 1);
+    pico_free(t);
 }
 
 // the shape we passed in should be stored on the tensor
@@ -27,6 +29,7 @@ UTEST(pico_param, shape_values) {
     struct PicoTensor* t = pico_param(shape, 2);
     ASSERT_EQ(t->shape[0], (int64_t)2);
     ASSERT_EQ(t->shape[1], (int64_t)3);
+    pico_free(t);
 }
 
 // row major strides, last dim is 1 and the rest are products of trailing dims
@@ -35,6 +38,7 @@ UTEST(pico_param, strides_row_major) {
     struct PicoTensor* t = pico_param(shape, 2);
     ASSERT_EQ(t->strides[0], (int64_t)3);
     ASSERT_EQ(t->strides[1], (int64_t)1);
+    pico_free(t);
 }
 
 // params need both a data buffer and a grad buffer allocated
@@ -43,6 +47,7 @@ UTEST(pico_param, allocates_data_and_grad) {
     struct PicoTensor* t = pico_param(shape, 2);
     ASSERT_TRUE(t->data != NULL);
     ASSERT_TRUE(t->grad != NULL);
+    pico_free(t);
 }
 
 // a fresh param is a leaf, so no parents and no backward fn yet
@@ -52,6 +57,7 @@ UTEST(pico_param, leaf_defaults) {
     ASSERT_TRUE(t->parents == NULL);
     ASSERT_EQ(t->num_parents, 0);
     ASSERT_TRUE(t->_backward == NULL);
+    pico_free(t);
 }
 
 // tensor should copy shape not borrow it, so mutating ours shouldnt change it
@@ -60,6 +66,7 @@ UTEST(pico_param, owns_its_shape_copy) {
     struct PicoTensor* t = pico_param(shape, 2);
     shape[0] = 99;
     ASSERT_EQ(t->shape[0], (int64_t)2);
+    pico_free(t);
 }
 
 // 1d tensor, single stride should just be 1
@@ -71,6 +78,7 @@ UTEST(pico_param, dim_1d) {
     ASSERT_EQ(t->strides[0], (int64_t)1);
     ASSERT_TRUE(t->data != NULL);
     ASSERT_TRUE(t->grad != NULL);
+    pico_free(t);
 }
 
 // 3d strides should be products of the trailing dims
@@ -83,6 +91,7 @@ UTEST(pico_param, dim_3d) {
     ASSERT_EQ(t->strides[2], (int64_t)1);
     ASSERT_TRUE(t->data != NULL);
     ASSERT_TRUE(t->grad != NULL);
+    pico_free(t);
 }
 
 // same stride logic should still hold for 4 dims
@@ -94,6 +103,7 @@ UTEST(pico_param, dim_4d) {
     ASSERT_EQ(t->strides[1], (int64_t)20);  // 4*5
     ASSERT_EQ(t->strides[2], (int64_t)5);   // 5
     ASSERT_EQ(t->strides[3], (int64_t)1);
+    pico_free(t);
 }
 
 // and still hold for 5 dims, just to be sure the loop is right
@@ -106,6 +116,7 @@ UTEST(pico_param, dim_5d) {
     ASSERT_EQ(t->strides[2], (int64_t)30);   // 5*6
     ASSERT_EQ(t->strides[3], (int64_t)6);    // 6
     ASSERT_EQ(t->strides[4], (int64_t)1);
+    pico_free(t);
 }
 
 // freeing a null pointer should just be a safe no op, not a crash

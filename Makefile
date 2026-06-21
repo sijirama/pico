@@ -9,6 +9,11 @@ OBJ_DIR = obj
 
 TARGET = pico
 TEST_TARGET = test_pico
+ASAN_TARGET = test_pico_asan
+
+# AddressSanitizer: detects leaks, use-after-free, double-free, overflows.
+# Slower + more memory, so it's a separate dev-only target (never shipped).
+ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 
 # Source files (recursively find all .c files except main.c)
 SRCS = $(filter-out $(SRC_DIR)/main.c, $(wildcard $(SRC_DIR)/*.c))
@@ -47,10 +52,18 @@ test: $(TEST_TARGET)
 run: $(TARGET)
 	@./$(TARGET)
 
+# Build the SAME tests with AddressSanitizer on, then run them.
+# Compiles sources directly (not via obj/) so it never mixes with the normal build.
+asan:
+	@echo "Building tests with AddressSanitizer..."
+	@$(CC) $(CFLAGS) -I $(TEST_DIR) $(ASAN_FLAGS) $(SRCS) $(TEST_SRCS) -o $(ASAN_TARGET) $(LDFLAGS)
+	@echo "Running tests under ASan..."
+	@./$(ASAN_TARGET)
+
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET) a.out 
+	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET) $(ASAN_TARGET) a.out
 
 rebuild: clean all
 
-.PHONY: all test run clean rebuild
+.PHONY: all test run clean rebuild asan
