@@ -102,15 +102,16 @@ void* arena_alloc(struct Arena* arena, size_t size) {
     return ptr;
 }
 
-void arena_reset(struct Arena* arena) {
-    arena->begin->curr = arena->begin->bottom;
-    arena->end = arena->begin;
-    arena->begin->next = NULL;
-}
-
 void arena_block_free(struct ArenaBlock* block) {
     free(block->bottom);  // free the actual data block (one real free)
     free(block);
+}
+
+void arena_reset(struct Arena* arena) {
+    arena->begin->curr = arena->begin->bottom;
+    arena->end = arena->begin;
+    arena_block_free(arena->begin->next);
+    arena->begin->next = NULL;
 }
 
 void arena_destroy(struct Arena* arena) {
@@ -124,6 +125,8 @@ void arena_destroy(struct Arena* arena) {
         arena_block_free(current);
         current = nextBlock;
     }
+
+    free(arena);
 }
 
 // ============================ arena context
