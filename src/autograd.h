@@ -37,3 +37,13 @@ static inline void pico_sub_backward(struct PicoTensor* self) {
         b->grad[i] -= self->grad[i];
     }
 }
+
+static inline void pico_mul_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    struct PicoTensor* b = self->parents[1];
+
+    for (int64_t i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * b->data[i];
+        b->grad[i] += self->grad[i] * a->data[i];
+    }
+}

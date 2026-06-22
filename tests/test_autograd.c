@@ -276,3 +276,67 @@ UTEST(autograd, backward_shared_internal_node) {
     arena_ctx_pop();
     arena_destroy(ar);
 }
+
+// ============================= matmul forward (pico_mul)
+// classic (2,3) @ (3,2) -> (2,2):
+//   [1 2 3]   [ 7  8]     [ 58  64]
+//   [4 5 6] @ [ 9 10]  =  [139 154]
+//             [11 12]
+// (matmul uses += into out->data, so out->data MUST be zeroed first.)
+UTEST(matmul, forward_2x3_times_3x2) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 3};
+    struct PicoTensor* a = pico_param(sa, 2);
+    float av[] = {1, 2, 3, 4, 5, 6};
+    for(int i = 0; i < 6; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {3, 2};
+    struct PicoTensor* b = pico_param(sb, 2);
+    float bv[] = {7, 8, 9, 10, 11, 12};
+    for(int i = 0; i < 6; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_mul(a, b);
+
+    ASSERT_TRUE(c->shape[0] == 2);
+    ASSERT_TRUE(c->shape[1] == 2);
+    ASSERT_TRUE(c->data[0] == 58.0f);
+    ASSERT_TRUE(c->data[1] == 64.0f);
+    ASSERT_TRUE(c->data[2] == 139.0f);
+    ASSERT_TRUE(c->data[3] == 154.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// square matmul too: (2,2) @ (2,2)
+//   [1 2]   [5 6]   [19 22]
+//   [3 4] @ [7 8] = [43 50]
+UTEST(matmul, forward_square) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 2};
+    struct PicoTensor* a = pico_param(s, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    struct PicoTensor* b = pico_param(s, 2);
+    float bv[] = {5, 6, 7, 8};
+    for(int i = 0; i < 4; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_mul(a, b);
+
+    ASSERT_TRUE(c->data[0] == 19.0f);
+    ASSERT_TRUE(c->data[1] == 22.0f);
+    ASSERT_TRUE(c->data[2] == 43.0f);
+    ASSERT_TRUE(c->data[3] == 50.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}

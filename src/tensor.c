@@ -111,6 +111,7 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
     int numel = pico_compute_numel(tensor->shape, tensor->ndim);
 
     tensor->data = (float*)arena_alloc(arena, numel * sizeof(float));
+    memset(tensor->data, 0, numel * sizeof(float));
     tensor->grad = (float*)arena_alloc(arena, numel * sizeof(float));
     memset(tensor->grad, 0, numel * sizeof(float));
     tensor->strides = (int64_t*)arena_alloc(arena, tensor->ndim * sizeof(int64_t));
