@@ -1,3 +1,13 @@
+/*
+ *
+ *
+
+simply beautiful, multiregion, constant time, arena allocator, 
+i'm like sooo fucking happy for this, no one has an idea
+
+ * 
+ * */
+
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
