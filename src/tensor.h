@@ -6,7 +6,7 @@
 
 typedef enum { CPU, GPU } PicoBackend;
 
-struct PicoTensor { 
+struct PicoTensor {
     int64_t* shape;
     int64_t* strides;
     float* data;
@@ -20,9 +20,13 @@ struct PicoTensor {
     uint8_t is_persistent;  // memory malloc'd ?
 };
 
+void pico_backward(struct Arena* arena, struct PicoTensor* entry);
+
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim);
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim);
+
 void pico_free(struct PicoTensor* tensor);
+
 uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTensor* b);
 
 // ============================= helpers

@@ -20,9 +20,12 @@ SRCS = $(filter-out $(SRC_DIR)/main.c, $(wildcard $(SRC_DIR)/*.c))
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o
 
-# Test files
-TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
-TEST_OBJS = $(patsubst $(TEST_DIR)/%.c, $(OBJ_DIR)/test_%.o, $(TEST_SRCS))
+# Test files (recursively find all .c under tests/, incl. tests/lib/ etc.)
+# obj names are flattened by base filename; vpath lets the rule locate the source
+# wherever it lives. (test filenames must stay unique across test subdirs.)
+TEST_SRCS = $(shell find $(TEST_DIR) -name '*.c')
+TEST_OBJS = $(patsubst %, $(OBJ_DIR)/test_%.o, $(basename $(notdir $(TEST_SRCS))))
+vpath %.c $(sort $(dir $(TEST_SRCS)))
 
 all: $(TARGET)
 
@@ -34,7 +37,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling $<..."
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/test_%.o: $(TEST_DIR)/%.c | $(OBJ_DIR)
+$(OBJ_DIR)/test_%.o: %.c | $(OBJ_DIR)
 	@echo "Compiling test $<..."
 	@$(CC) $(CFLAGS) -I $(TEST_DIR) -c $< -o $@
 

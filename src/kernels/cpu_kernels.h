@@ -14,3 +14,11 @@ static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b,
             pico_add_cpu_scalar(a, b, out);
     }
 }
+
+static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b,
+                                struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_sub_cpu_scalar(a, b, out);
+    }
+}

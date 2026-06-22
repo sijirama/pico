@@ -14,3 +14,12 @@ static inline void pico_add_cpu_scalar(struct PicoTensor* a, struct PicoTensor* 
         out->data[i] = a->data[ia] + b->data[ib];
     }
 }
+
+static inline void pico_sub_cpu_scalar(struct PicoTensor* a, struct PicoTensor* b,
+                                       struct PicoTensor* out) {
+    for(int64_t i = 0; i < out->numel; i++) {
+        int64_t ia = map_index(i, a, out->strides, out->ndim);
+        int64_t ib = map_index(i, b, out->strides, out->ndim);
+        out->data[i] = a->data[ia] - b->data[ib];
+    }
+}

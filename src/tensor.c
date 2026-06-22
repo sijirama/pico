@@ -6,6 +6,39 @@
 #include <string.h>
 
 #include "arena.h"
+#include "lib/pico_vector.h"
+
+void postorder(struct PicoTensor* root, struct PicoTensorDVector* vector,
+               struct PicoTensorDVector* visited);
+
+void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
+    // build our dependency graph with dfs
+    struct PicoTensorDVector vector, visited;
+    init_pico_tensor_d_vector(&vector, 25);
+    init_pico_tensor_d_vector(&visited, 25);
+    postorder(entry, &vector, &visited);
+
+    // post-order gives [leaves ... entry]; reverse -> [entry ... leaves]
+    reverse_pico_tensor_d_vector(&vector);
+
+    // seed the entry node with grad 1
+    struct PicoTensor* curr = NULL;
+    curr = (struct PicoTensor*)vector.data[0];
+    for(int i = 0; i < curr->numel; i++) {
+        curr->grad[i] = 1.0f;
+    }
+
+    // call backward on each  (now iterate FORWARD: entry is first)
+    for(int i = 0; i < vector.size; i++) {
+        curr = (struct PicoTensor*)vector.data[i];
+        if(curr->_backward != NULL) {
+            curr->_backward(curr);
+        }
+    }
+
+    free_pico_tensor_d_vector(&vector);
+    free_pico_tensor_d_vector(&visited);
+}
 
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim) {
     struct PicoTensor* tensor = (struct PicoTensor*)calloc(1, sizeof(struct PicoTensor));
@@ -79,6 +112,7 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
 
     tensor->data = (float*)arena_alloc(arena, numel * sizeof(float));
     tensor->grad = (float*)arena_alloc(arena, numel * sizeof(float));
+    memset(tensor->grad, 0, numel * sizeof(float));
     tensor->strides = (int64_t*)arena_alloc(arena, tensor->ndim * sizeof(int64_t));
 
     // check if any inner allocations failed
@@ -157,4 +191,21 @@ uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTens
     // the extra leading dimensions [5] are always compatible with
     // the "implicit ones" of the smaller tensor.
     return 1;
+}
+
+void postorder(struct PicoTensor* root, struct PicoTensorDVector* vector,
+               struct PicoTensorDVector* visited) {
+    if(root == NULL) {
+        return;
+    }
+
+    for(int i = 0; i < root->num_parents; i++) {
+        postorder(root->parents[i], vector, visited);
+    }
+
+    // append to array if not appended before
+    if(search_pico_tensor_d_vector(visited, root) == -1) {
+        insert_pico_tensor_d_vector(vector, root);
+        insert_pico_tensor_d_vector(visited, root);
+    }
 }
