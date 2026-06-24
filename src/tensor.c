@@ -8,18 +8,18 @@
 #include "arena.h"
 #include "lib/pico_vector.h"
 
-void postorder(struct PicoTensor* root, struct PicoTensorDVector* vector,
-               struct PicoTensorDVector* visited);
+void postorder(struct PicoTensor* root, struct PicoVec* vector,
+               struct PicoVec* visited);
 
 void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
     // build our dependency graph with dfs
-    struct PicoTensorDVector vector, visited;
-    init_pico_tensor_d_vector(&vector, 25);
-    init_pico_tensor_d_vector(&visited, 25);
+    struct PicoVec vector, visited;
+    pico_vec_init(&vector, 25);
+    pico_vec_init(&visited, 25);
     postorder(entry, &vector, &visited);
 
     // post-order gives [leaves ... entry]; reverse -> [entry ... leaves]
-    reverse_pico_tensor_d_vector(&vector);
+    pico_vec_reverse(&vector);
 
     // seed the entry node with grad 1
     struct PicoTensor* curr = NULL;
@@ -36,8 +36,8 @@ void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
         }
     }
 
-    free_pico_tensor_d_vector(&vector);
-    free_pico_tensor_d_vector(&visited);
+    pico_vec_free(&vector);
+    pico_vec_free(&visited);
 }
 
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim) {
@@ -194,8 +194,8 @@ uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTens
     return 1;
 }
 
-void postorder(struct PicoTensor* root, struct PicoTensorDVector* vector,
-               struct PicoTensorDVector* visited) {
+void postorder(struct PicoTensor* root, struct PicoVec* vector,
+               struct PicoVec* visited) {
     if(root == NULL) {
         return;
     }
@@ -205,8 +205,8 @@ void postorder(struct PicoTensor* root, struct PicoTensorDVector* vector,
     }
 
     // append to array if not appended before
-    if(search_pico_tensor_d_vector(visited, root) == -1) {
-        insert_pico_tensor_d_vector(vector, root);
-        insert_pico_tensor_d_vector(visited, root);
+    if(pico_vec_find(visited, root) == -1) {
+        pico_vec_push(vector, root);
+        pico_vec_push(visited, root);
     }
 }

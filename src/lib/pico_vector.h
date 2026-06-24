@@ -4,13 +4,13 @@
 
 #include "tensor.h"
 
-struct PicoTensorDVector {
+struct PicoVec {
     struct PicoTensor** data;  // Pointer to the array of picotensor pointers
     size_t size;               // Current number of elements stored
     size_t capacity;           // Total capacity allocated
 };
 
-static inline void init_pico_tensor_d_vector(struct PicoTensorDVector* a, size_t initialCapacity) {
+static inline void pico_vec_init(struct PicoVec* a, size_t initialCapacity) {
     a->data = malloc(initialCapacity * sizeof(struct PicoTensor*));
     if(a->data == NULL) {
         perror("Allocation failed");
@@ -20,7 +20,7 @@ static inline void init_pico_tensor_d_vector(struct PicoTensorDVector* a, size_t
     a->capacity = initialCapacity;
 }
 
-static inline void insert_pico_tensor_d_vector(struct PicoTensorDVector* a,
+static inline void pico_vec_push(struct PicoVec* a,
                                                struct PicoTensor* element) {
     if(a->size == a->capacity) {
         // Double the capacity when full
@@ -41,7 +41,7 @@ static inline void insert_pico_tensor_d_vector(struct PicoTensorDVector* a,
     a->data[a->size++] = element;
 }
 
-static inline int search_pico_tensor_d_vector(struct PicoTensorDVector* a,
+static inline int pico_vec_find(struct PicoVec* a,
                                               struct PicoTensor* element) {
     if(a == NULL) {
         return -2;
@@ -55,7 +55,7 @@ static inline int search_pico_tensor_d_vector(struct PicoTensorDVector* a,
 }
 
 // reverse in place: two pointers from the ends, swap and walk inward.
-static inline void reverse_pico_tensor_d_vector(struct PicoTensorDVector* a) {
+static inline void pico_vec_reverse(struct PicoVec* a) {
     if(a == NULL || a->size < 2) {
         return;  // nothing to reverse (also guards size-1 underflow below)
     }
@@ -70,7 +70,7 @@ static inline void reverse_pico_tensor_d_vector(struct PicoTensorDVector* a) {
     }
 }
 
-static inline void free_pico_tensor_d_vector(struct PicoTensorDVector* a) {
+static inline void pico_vec_free(struct PicoVec* a) {
     free(a->data);
     a->data = NULL;
     a->size = 0;
