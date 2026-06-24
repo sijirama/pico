@@ -27,7 +27,9 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
 
 void pico_free(struct PicoTensor* tensor);
 
-uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTensor* b);
+// ====================================== important ops
+void pico_transpose_2d(struct PicoTensor* tensor);
+
 
 // ============================= helpers
 
@@ -57,6 +59,8 @@ static inline void pico_tensor_update_strides(struct PicoTensor* t) {
 }
 
 // ============================= broadcasting
+
+uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTensor* b);
 
 // pad a tensor's shape up to `ndim` by prepending 1s on the left (right-align).
 // only used in ops to compute the output shape (out_dim = max of padded shapes).

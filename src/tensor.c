@@ -165,6 +165,22 @@ void pico_free(struct PicoTensor* tensor) {
     free(tensor);
 }
 
+void pico_transpose_2d(struct PicoTensor* tensor) {
+    if(tensor->ndim != 2) {
+        fprintf(stderr, "Error: This is not a rank 2 tensor!\n");
+        return;
+    }
+
+    // swap the r and c
+    int c = tensor->shape[1];
+    tensor->shape[1] = tensor->shape[0];
+    tensor->shape[0] = c;
+
+    int sc = tensor->strides[1];
+    tensor->strides[1] = tensor->strides[0];
+    tensor->strides[0] = sc;
+}
+
 uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTensor* b) {
     int ndim_a = a->ndim;
     int ndim_b = b->ndim;
