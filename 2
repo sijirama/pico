@@ -1,0 +1,12 @@
+
+#pragma once
+
+enum MSEReductionType { MEAN, SUM, NONE };
+
+struct PicoMSELoaa {
+    enum MSEReductionType reduction;
+};
+
+
+struct PicoMSELoss* pico_mse_loss_init(enum MSEReductionType reduction);
+struct PicoTensor* pico_mse_loss(struct PicoTensor* predictions, struct PicoTensor* actuals) {}
