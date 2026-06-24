@@ -31,7 +31,7 @@ void pico_optim_sgd_step(struct PicoOptimSGD* optim) {
     for(int i = 0; i < optim->params.size; i++) {
         tensor = optim->params.data[i];
         for(int j = 0; j < tensor->numel; j++) {
-            tensor->data[j] -= optim->lr * tensor->grad[i];
+            tensor->data[j] -= optim->lr * tensor->grad[j];
         }
     }
 }
