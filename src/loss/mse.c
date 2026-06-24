@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "loss.h"
+#include "loss/autograd.h"
 #include "tensor.h"
 
 void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
@@ -9,10 +10,12 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
 
 struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* predictions,
                                  struct PicoTensor* actuals) {
-    if(predictions->shape != actuals->shape) {
-        fprintf(stderr, "[Pico] Error: PicoTensors are not compatible!\n");
-        return NULL;
-    }
+    // if(predictions->shape != actuals->shape) {
+    //     fprintf(stderr, "[Pico] Error: PicoTensors are not compatible!\n");
+    //     return NULL;
+    // }
+    // TODO:
+    // WARN:: loop through shape and compare then check ndiim too
 
     if(predictions->backend != actuals->backend) {
         fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
@@ -31,6 +34,12 @@ struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* pre
             pico_mse_loss_mean(out, predictions, actuals);
     }
 
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor*) * 2);
+    out->parents[0] = predictions;
+    out->parents[1] = actuals;
+    out->num_parents = 2;
+    out->_backward = pico_mse_loss_backward;
+
     return out;
 }
 
@@ -45,6 +54,6 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
     int64_t shape[] = {};
 
     out->data[0] = loss;
-    out->ndim = 1;
-    out->shape = shape;
+    out->ndim = 0;
+    out->shape = NULL;
 }
