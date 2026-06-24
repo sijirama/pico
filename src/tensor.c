@@ -8,8 +8,7 @@
 #include "arena.h"
 #include "lib/pico_vector.h"
 
-void postorder(struct PicoTensor* root, struct PicoVec* vector,
-               struct PicoVec* visited);
+void postorder(struct PicoTensor* root, struct PicoVec* vector, struct PicoVec* visited);
 
 void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
     // build our dependency graph with dfs
@@ -194,19 +193,20 @@ uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTens
     return 1;
 }
 
-void postorder(struct PicoTensor* root, struct PicoVec* vector,
-               struct PicoVec* visited) {
+void postorder(struct PicoTensor* root, struct PicoVec* vector, struct PicoVec* visited) {
     if(root == NULL) {
         return;
     }
+    if(pico_vec_find(visited, root) != -1) {
+        return;
+    }
+
+    pico_vec_push(visited, root);
 
     for(int i = 0; i < root->num_parents; i++) {
         postorder(root->parents[i], vector, visited);
     }
 
     // append to array if not appended before
-    if(pico_vec_find(visited, root) == -1) {
-        pico_vec_push(vector, root);
-        pico_vec_push(visited, root);
-    }
+    pico_vec_push(vector, root);
 }
