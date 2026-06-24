@@ -197,7 +197,7 @@ void postorder(struct PicoTensor* root, struct PicoVec* vector, struct PicoVec* 
     if(root == NULL) {
         return;
     }
-    if(pico_vec_find(visited, root) != -1) {
+    if(pico_vec_find(visited, root) != -1) {  // if node was found? stop redundant traversals
         return;
     }
 
