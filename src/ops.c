@@ -96,7 +96,7 @@ struct PicoTensor* pico_sub(struct PicoTensor* a, struct PicoTensor* b) {
     return out;
 }
 
-struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
+struct PicoTensor* pico_matmul(struct PicoTensor* a, struct PicoTensor* b) {
     if(a->shape[a->ndim - 1] != b->shape[0]) {
         perror("[Pico] Error: 2 matmuls matrices must be compatible");
         return NULL;
@@ -131,7 +131,7 @@ struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
                                 // same fucking realm
 
     if(a->backend == CPU) {
-        pico_mul_cpu(a, b, out);
+        pico_matmul_cpu(a, b, out);
     }
 
     // stuff we need for backprop
@@ -139,7 +139,7 @@ struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
     out->parents[0] = a;
     out->parents[1] = b;
     out->num_parents = 2;
-    out->_backward = pico_mul_backward;
+    out->_backward = pico_matmul_backward;
 
     return out;
 }

@@ -277,7 +277,7 @@ UTEST(autograd, backward_shared_internal_node) {
     arena_destroy(ar);
 }
 
-// ============================= matmul forward (pico_mul)
+// ============================= matmul forward (pico_matmul)
 // classic (2,3) @ (3,2) -> (2,2):
 //   [1 2 3]   [ 7  8]     [ 58  64]
 //   [4 5 6] @ [ 9 10]  =  [139 154]
@@ -297,7 +297,7 @@ UTEST(matmul, forward_2x3_times_3x2) {
     float bv[] = {7, 8, 9, 10, 11, 12};
     for(int i = 0; i < 6; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_matmul(a, b);
 
     ASSERT_TRUE(c->shape[0] == 2);
     ASSERT_TRUE(c->shape[1] == 2);
@@ -328,7 +328,7 @@ UTEST(matmul, forward_square) {
     float bv[] = {5, 6, 7, 8};
     for(int i = 0; i < 4; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_matmul(a, b);
 
     ASSERT_TRUE(c->data[0] == 19.0f);
     ASSERT_TRUE(c->data[1] == 22.0f);
@@ -337,6 +337,243 @@ UTEST(matmul, forward_square) {
 
     pico_free(a);
     pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// matmul backward: C = A·B,  dA = dC·Bᵀ,  dB = Aᵀ·dC, with all-ones upstream.
+//   A=[[1,2],[3,4]]  B=[[5,6],[7,8]]   seed dC = ones(2,2)
+//   dA = ones·Bᵀ = [[11,15],[11,15]]   (row sums of B: 5+6, 7+8)
+//   dB = Aᵀ·ones = [[4,4],[6,6]]       (col sums of A: 1+3, 2+4)
+UTEST(matmul, backward_square) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 2};
+    struct PicoTensor* a = pico_param(s, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    struct PicoTensor* b = pico_param(s, 2);
+    float bv[] = {5, 6, 7, 8};
+    for(int i = 0; i < 4; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_matmul(a, b);
+    pico_backward(ar, c);  // seeds c->grad = 1
+
+    ASSERT_TRUE(a->grad[0] == 11.0f);
+    ASSERT_TRUE(a->grad[1] == 15.0f);
+    ASSERT_TRUE(a->grad[2] == 11.0f);
+    ASSERT_TRUE(a->grad[3] == 15.0f);
+
+    ASSERT_TRUE(b->grad[0] == 4.0f);
+    ASSERT_TRUE(b->grad[1] == 4.0f);
+    ASSERT_TRUE(b->grad[2] == 6.0f);
+    ASSERT_TRUE(b->grad[3] == 6.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// non-square matmul backward: (2,3)@(3,2). this is the case the OLD element-wise
+// backward got OUT OF BOUNDS on — so it also confirms the shapes are handled right.
+UTEST(matmul, backward_non_square) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 3};
+    struct PicoTensor* a = pico_param(sa, 2);
+    float av[] = {1, 2, 3, 4, 5, 6};
+    for(int i = 0; i < 6; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {3, 2};
+    struct PicoTensor* b = pico_param(sb, 2);
+    float bv[] = {7, 8, 9, 10, 11, 12};
+    for(int i = 0; i < 6; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_matmul(a, b);  // (2,2)
+    pico_backward(ar, c);                       // seed dC = ones(2,2)
+
+    // dA = dC·Bᵀ, dC=ones(2,2): each dA[i][k] = sum of row k of B = (b[k][0]+b[k][1])
+    //   row0:7+8=15, row1:9+10=19, row2:11+12=23  -> every A row = [15,19,23]
+    ASSERT_TRUE(a->grad[0] == 15.0f);
+    ASSERT_TRUE(a->grad[1] == 19.0f);
+    ASSERT_TRUE(a->grad[2] == 23.0f);
+    ASSERT_TRUE(a->grad[3] == 15.0f);
+    ASSERT_TRUE(a->grad[4] == 19.0f);
+    ASSERT_TRUE(a->grad[5] == 23.0f);
+
+    // dB = Aᵀ·dC: each dB[k][j] = sum of col k of A = (a[0][k]+a[1][k])
+    //   col0:1+4=5, col1:2+5=7, col2:3+6=9  -> dB rows = [5,5],[7,7],[9,9]
+    ASSERT_TRUE(b->grad[0] == 5.0f);
+    ASSERT_TRUE(b->grad[1] == 5.0f);
+    ASSERT_TRUE(b->grad[2] == 7.0f);
+    ASSERT_TRUE(b->grad[3] == 7.0f);
+    ASSERT_TRUE(b->grad[4] == 9.0f);
+    ASSERT_TRUE(b->grad[5] == 9.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// ============================= full-backward coverage (via pico_backward)
+
+// deep add chain: L = ((a + b) + c) + d  -> every leaf gets grad 1
+UTEST(backward_full, add_deep_chain) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* b = pico_param(s, 1);
+    struct PicoTensor* c = pico_param(s, 1);
+    struct PicoTensor* d = pico_param(s, 1);
+
+    struct PicoTensor* L = pico_add(pico_add(pico_add(a, b), c), d);
+    pico_backward(ar, L);
+
+    ASSERT_TRUE(a->grad[0] == 1.0f);
+    ASSERT_TRUE(b->grad[0] == 1.0f);
+    ASSERT_TRUE(c->grad[0] == 1.0f);
+    ASSERT_TRUE(d->grad[0] == 1.0f);
+
+    pico_free(a);
+    pico_free(b);
+    pico_free(c);
+    pico_free(d);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// diamond: a feeds TWO branches that merge.  p = a+x ; q = a+y ; L = p+q
+//   a reaches L through both p and q -> a.grad = 2 ; x.grad = 1 ; y.grad = 1
+UTEST(backward_full, add_diamond_reuses_leaf) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* y = pico_param(s, 1);
+
+    struct PicoTensor* p = pico_add(a, x);
+    struct PicoTensor* q = pico_add(a, y);
+    struct PicoTensor* L = pico_add(p, q);
+    pico_backward(ar, L);
+
+    ASSERT_TRUE(a->grad[0] == 2.0f);  // two paths to L
+    ASSERT_TRUE(x->grad[0] == 1.0f);
+    ASSERT_TRUE(y->grad[0] == 1.0f);
+
+    pico_free(a);
+    pico_free(x);
+    pico_free(y);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// matmul shaped as a dot product: (1,3)@(3,1) -> (1,1).  seed dC=1.
+//   dA = dC·Bᵀ = B as a row -> a.grad = [4,5,6]
+//   dB = Aᵀ·dC = A as a col -> b.grad = [1,2,3]
+UTEST(backward_full, matmul_dot_shape) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {1, 3};
+    struct PicoTensor* a = pico_param(sa, 2);
+    float av[] = {1, 2, 3};
+    for(int i = 0; i < 3; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {3, 1};
+    struct PicoTensor* b = pico_param(sb, 2);
+    float bv[] = {4, 5, 6};
+    for(int i = 0; i < 3; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_matmul(a, b);
+    ASSERT_TRUE(c->data[0] == 32.0f);  // 1*4 + 2*5 + 3*6
+    pico_backward(ar, c);
+
+    ASSERT_TRUE(a->grad[0] == 4.0f);
+    ASSERT_TRUE(a->grad[1] == 5.0f);
+    ASSERT_TRUE(a->grad[2] == 6.0f);
+    ASSERT_TRUE(b->grad[0] == 1.0f);
+    ASSERT_TRUE(b->grad[1] == 2.0f);
+    ASSERT_TRUE(b->grad[2] == 3.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// matmul feeding an add (a "layer" without bias-broadcast): E = (A@B) + C
+//   E.grad = ones -> add sends ones to both (A@B) and C
+//   then matmul backward with upstream=ones: dA=[11,15,11,15], dB=[4,4,6,6]
+//   C is a direct leaf of the add -> C.grad = ones
+UTEST(backward_full, matmul_then_add) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 2};
+    struct PicoTensor* a = pico_param(s, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    struct PicoTensor* b = pico_param(s, 2);
+    float bv[] = {5, 6, 7, 8};
+    for(int i = 0; i < 4; i++) b->data[i] = bv[i];
+
+    struct PicoTensor* c = pico_param(s, 2);  // same shape as A@B -> no broadcast
+
+    struct PicoTensor* e = pico_add(pico_matmul(a, b), c);
+    pico_backward(ar, e);
+
+    ASSERT_TRUE(a->grad[0] == 11.0f);
+    ASSERT_TRUE(a->grad[1] == 15.0f);
+    ASSERT_TRUE(a->grad[2] == 11.0f);
+    ASSERT_TRUE(a->grad[3] == 15.0f);
+
+    ASSERT_TRUE(b->grad[0] == 4.0f);
+    ASSERT_TRUE(b->grad[1] == 4.0f);
+    ASSERT_TRUE(b->grad[2] == 6.0f);
+    ASSERT_TRUE(b->grad[3] == 6.0f);
+
+    for(int i = 0; i < 4; i++)
+        ASSERT_TRUE(c->grad[i] == 1.0f);  // C is added straight in
+
+    pico_free(a);
+    pico_free(b);
+    pico_free(c);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// shared parent through matmul:  C = A @ A  (both parents are A)
+//   A=[[1,2],[3,4]], seed dC=ones.  A.grad = dA + dB (same tensor accumulates both):
+//   dA = dC·Aᵀ = [[3,7],[3,7]] ,  dB = Aᵀ·dC = [[4,4],[6,6]]
+//   sum -> A.grad = [[7,11],[9,13]]
+UTEST(backward_full, matmul_shared_parent) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 2};
+    struct PicoTensor* a = pico_param(s, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    struct PicoTensor* c = pico_matmul(a, a);
+    pico_backward(ar, c);
+
+    ASSERT_TRUE(a->grad[0] == 7.0f);
+    ASSERT_TRUE(a->grad[1] == 11.0f);
+    ASSERT_TRUE(a->grad[2] == 9.0f);
+    ASSERT_TRUE(a->grad[3] == 13.0f);
+
+    pico_free(a);
     arena_ctx_pop();
     arena_destroy(ar);
 }

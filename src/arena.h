@@ -2,7 +2,7 @@
  *
  *
 
-simply beautiful, multiregion, constant time, arena allocator, 
+simply beautiful, multi-region, constant time ops, arena allocator, 
 i'm like sooo fucking happy for this, no one has an idea
 
  * 
