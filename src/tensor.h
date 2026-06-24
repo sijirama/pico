@@ -28,7 +28,14 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
 void pico_free(struct PicoTensor* tensor);
 
 // ====================================== important ops
+// TODO: siji don't forget about these guys 
+
+void pico_transpose(struct PicoTensor* tensor);
 void pico_transpose_2d(struct PicoTensor* tensor);
+
+void pico_transpose_reshape(struct PicoTensor* tensor, int64_t * shape, int ndim );
+
+struct PicoTensor* pico_transpose_clone(struct PicoTensor* tensor);
 
 
 // ============================= helpers
