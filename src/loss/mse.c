@@ -43,9 +43,11 @@ struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* pre
         case SUM:
             pico_mse_loss_sum(out, predictions, actuals);
             out->_backward = pico_mse_loss_sum_backward;
+            break;
         default:
             pico_mse_loss_mean(out, predictions, actuals);
             out->_backward = pico_mse_loss_mean_backward;
+            break;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*) * 2);
