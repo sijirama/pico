@@ -15,8 +15,4 @@ struct PicoMSELoss* pico_mse_loss_init(struct Arena * arena, enum PicoMSEReducti
 struct PicoTensor* pico_mse_loss(struct PicoMSELoss * mse, struct PicoTensor* predictions, struct PicoTensor* actuals);
 
 
-// ==================== Nesterov accelerated gradient (NAG)
-// ==================== AdaGrad
-// ==================== RMSProp
-// ==================== ADAM
-// ==================== Muon
+
