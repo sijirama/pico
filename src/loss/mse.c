@@ -9,6 +9,9 @@
 void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
                         struct PicoTensor* actuals);
 
+void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
+                       struct PicoTensor* actuals);
+
 struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductionType reduction) {
     struct PicoMSELoss* mse = (struct PicoMSELoss*)arena_alloc(arena, sizeof(struct PicoMSELoss));
     mse->reduction = reduction;
@@ -37,15 +40,18 @@ struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* pre
     struct PicoTensor* out = pico_create_tensor(arena, predictions->shape, predictions->ndim);
 
     switch(mse->reduction) {
+        case SUM:
+            pico_mse_loss_sum(out, predictions, actuals);
+            out->_backward = pico_mse_loss_sum_backward;
         default:
             pico_mse_loss_mean(out, predictions, actuals);
+            out->_backward = pico_mse_loss_mean_backward;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*) * 2);
     out->parents[0] = predictions;
     out->parents[1] = actuals;
     out->num_parents = 2;
-    out->_backward = pico_mse_loss_backward;
 
     return out;
 }
@@ -58,6 +64,18 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
     }
 
     loss = loss / prediction->numel;
+
+    out->data[0] = loss;
+    out->ndim = 0;
+    out->shape = NULL;
+}
+
+void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
+                       struct PicoTensor* actuals) {
+    float loss = 0;
+    for(int i = 0; i < prediction->numel; i++) {
+        loss += powf((prediction->data[i] - actuals->data[i]), 2.0f);
+    }
 
     out->data[0] = loss;
     out->ndim = 0;
