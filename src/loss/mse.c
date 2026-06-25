@@ -58,7 +58,6 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
     }
 
     loss = loss / prediction->numel;
-    int64_t shape[] = {};
 
     out->data[0] = loss;
     out->ndim = 0;
