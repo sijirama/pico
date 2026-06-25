@@ -1,12 +1,19 @@
 #include <math.h>
 #include <stdint.h>
 
+#include "arena.h"
 #include "loss.h"
 #include "loss/autograd.h"
 #include "tensor.h"
 
 void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
                         struct PicoTensor* actuals);
+
+struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductionType reduction) {
+    struct PicoMSELoss* mse = (struct PicoMSELoss*)arena_alloc(arena, sizeof(struct PicoMSELoss));
+    mse->reduction = reduction;
+    return mse;
+}
 
 struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* predictions,
                                  struct PicoTensor* actuals) {
