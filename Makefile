@@ -16,7 +16,8 @@ ASAN_TARGET = test_pico_asan
 ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 
 # Source files (recursively find all .c files except main.c)
-SRCS = $(filter-out $(SRC_DIR)/main.c, $(wildcard $(SRC_DIR)/*.c))
+# SRCS = $(filter-out $(SRC_DIR)/main.c, $(wildcard $(SRC_DIR)/*.c))
+SRCS = $(filter-out $(SRC_DIR)/main.c, $(shell find $(SRC_DIR) -name '*.c'))
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o
 
