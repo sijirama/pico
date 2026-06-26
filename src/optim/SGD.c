@@ -45,3 +45,8 @@ void pico_optim_sgd_zero_grad(struct PicoOptimSGD* optim) {
         }
     }
 }
+
+void pico_optim_sgd_free(struct PicoOptimSGD* optim) {
+    pico_vec_free(&optim->params);
+    free(optim);
+}
