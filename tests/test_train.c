@@ -7,6 +7,7 @@
  */
 #include <stdlib.h>
 
+#include "act/activations.h"
 #include "arena.h"
 #include "lib/pico_vector.h"
 #include "loss/loss.h"
@@ -126,6 +127,66 @@ UTEST(train, multi_step_keeps_improving) {
 
     pico_optim_sgd_free(opt);
     pico_free(w);
+    pico_free(target);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// HEADLINE: a 2-layer MLP with a relu in the middle.
+//   pred = relu(x @ W1) @ W2 ;  loss = mse(pred, target)
+// proves the gradient flows back THROUGH the relu gate (matmul -> relu -> matmul)
+// and the whole net trains. W1 starts as identity so the relu gates open and stay
+// open; W2 starts at 0 so step 1 learns via W2, later steps reach W1 too.
+UTEST(train, relu_mlp_lowers_loss) {
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t sx[] = {1, 2};
+    struct PicoTensor* x = pico_param(sx, 2);
+    x->data[0] = 1.0f;
+    x->data[1] = 1.0f;
+
+    int64_t s1[] = {2, 2};
+    struct PicoTensor* W1 = pico_param(s1, 2);
+    W1->data[0] = 1.0f;  // identity
+    W1->data[1] = 0.0f;
+    W1->data[2] = 0.0f;
+    W1->data[3] = 1.0f;
+
+    int64_t s2[] = {2, 1};
+    struct PicoTensor* W2 = pico_param(s2, 2);
+    W2->data[0] = 0.0f;
+    W2->data[1] = 0.0f;
+
+    int64_t st[] = {1, 1};
+    struct PicoTensor* target = pico_param(st, 2);
+    target->data[0] = 1.0f;
+
+    struct PicoOptimSGD* opt = pico_optim_sgd_init(0.1f);
+    pico_optim_sgd_add(opt, W1);
+    pico_optim_sgd_add(opt, W2);
+    struct PicoMSELoss mse = {.reduction = MEAN};
+
+    float prev = 1e30f;
+    for(int step = 0; step < 5; step++) {
+        struct PicoTensor* pred = pico_matmul(pico_relu(pico_matmul(x, W1)), W2);
+        struct PicoTensor* loss = pico_mse_loss(&mse, pred, target);
+
+        float l = loss->data[0];
+        ASSERT_TRUE(l < prev);  // strictly decreasing every step
+        prev = l;
+
+        pico_optim_sgd_zero_grad(opt);
+        pico_backward(ar, loss);
+        pico_optim_sgd_step(opt);
+    }
+
+    ASSERT_TRUE(prev < 1.0f);  // started at 1.0, learned
+
+    pico_optim_sgd_free(opt);
+    pico_free(x);
+    pico_free(W1);
+    pico_free(W2);
     pico_free(target);
     arena_ctx_pop();
     arena_destroy(ar);
