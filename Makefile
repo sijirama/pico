@@ -36,6 +36,7 @@ $(TARGET): $(OBJS) $(MAIN_OBJ)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling $<..."
+	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/test_%.o: %.c | $(OBJ_DIR)

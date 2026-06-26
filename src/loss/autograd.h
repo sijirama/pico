@@ -32,7 +32,7 @@ static inline void pico_mse_loss_sum_backward(struct PicoTensor* self) {
 
     for(int64_t i = 0; i < N; i++) {
         
-        // local sensitivity: d(loss)/d(pred_i) = (2/N) * (pred_i - actual_i)
+        // local sensitivity: d(loss)/d(pred_i) = 2 * (pred_i - actual_i)
         float local = (2.0f) * (prediction->data[i] - actuals->data[i]);
 
         prediction->grad[i] += local * upstream;
