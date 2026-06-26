@@ -25,8 +25,7 @@ UTEST(optim_sgd, step_updates_one_param) {
 
     ASSERT_TRUE(w->data[0] == 8.0f);  // 10 - 0.5*4
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w);
 }
 
@@ -49,8 +48,7 @@ UTEST(optim_sgd, step_multi_element) {
     ASSERT_TRUE(w->data[1] == 2.0f);  // 4 - 0.5*4
     ASSERT_TRUE(w->data[2] == 3.0f);  // 6 - 0.5*6
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w);
 }
 
@@ -66,8 +64,7 @@ UTEST(optim_sgd, zero_grad_clears) {
 
     for(int i = 0; i < 3; i++) ASSERT_TRUE(w->grad[i] == 0.0f);
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w);
 }
 
@@ -89,8 +86,7 @@ UTEST(optim_sgd, step_multiple_params) {
     ASSERT_TRUE(w1->data[0] == 8.0f);   // 10 - 0.5*4
     ASSERT_TRUE(w2->data[0] == 15.0f);  // 20 - 0.5*10
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w1);
     pico_free(w2);
 }

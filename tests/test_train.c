@@ -44,8 +44,7 @@ UTEST(train, step_lowers_loss_scalar) {
 
     ASSERT_TRUE(l2 < l1);  // it learned something
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w);
     pico_free(target);
     arena_ctx_pop();
@@ -88,8 +87,7 @@ UTEST(train, step_lowers_loss_linear) {
 
     ASSERT_TRUE(l2 < l1);
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(x);
     pico_free(w);
     pico_free(target);
@@ -126,8 +124,7 @@ UTEST(train, multi_step_keeps_improving) {
 
     ASSERT_TRUE(prev < 1.0f);  // got close to the target
 
-    pico_vec_free(&opt->params);
-    free(opt);
+    pico_optim_sgd_free(opt);
     pico_free(w);
     pico_free(target);
     arena_ctx_pop();
