@@ -55,6 +55,10 @@ struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* pre
     out->parents[1] = actuals;
     out->num_parents = 2;
 
+    out->ndim = 0;
+    out->shape = NULL;
+    out->numel = 1;
+
     return out;
 }
 
@@ -68,8 +72,6 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
     loss = loss / prediction->numel;
 
     out->data[0] = loss;
-    out->ndim = 0;
-    out->shape = NULL;
 }
 
 void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
@@ -80,6 +82,4 @@ void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
     }
 
     out->data[0] = loss;
-    out->ndim = 0;
-    out->shape = NULL;
 }
