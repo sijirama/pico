@@ -1,6 +1,8 @@
 #include "global.h"
 
 #include <stdio.h>
+#include <stdlib.h>  // Required for rand() and srand()
+#include <time.h>    // Required for time()
 
 #include "arena.h"
 
@@ -23,6 +25,8 @@ static GpuBackend detect_gpu(void) {
 void pico_init(void) {
     if(g_pico_initialized)
         return;
+
+    srand(time(NULL));  // seed random numbers, thankssssss
 
     g_simd_level = detect_simd();
     g_gpu_backend = detect_gpu();

@@ -3,6 +3,7 @@
  * These tests describe what pico_param SHOULD do; use them to drive the fixes.
  */
 
+#include "arena.h"
 #include "tensor.h"
 #include "utest.h"
 
@@ -132,4 +133,77 @@ UTEST(pico_free, frees_a_param) {
     ASSERT_TRUE(t != NULL);
     pico_free(t);
     ASSERT_TRUE(1);  // no crash, and asan confirms no leak / no double free
+}
+
+// ===================================================================
+//  pico_rand / pico_randn  (these describe the TARGET behavior)
+// ===================================================================
+
+// pico_rand keeps the requested shape (it's just a filled tensor)
+UTEST(pico_rand, keeps_shape) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 3};
+    struct PicoTensor* t = pico_rand(ar, s, 2);
+
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->ndim, 2);
+    ASSERT_EQ(t->numel, 6);
+    ASSERT_TRUE(t->shape[0] == 2);
+    ASSERT_TRUE(t->shape[1] == 3);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// pico_rand is UNIFORM on [0, 1): every element in range, and (with 1000 draws)
+// there's actual spread — not a constant fill.
+UTEST(pico_rand, uniform_unit_range) {
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1000};
+    struct PicoTensor* t = pico_rand(ar, s, 1);
+
+    float lo = 2.0f, hi = -1.0f;
+    for(int64_t i = 0; i < t->numel; i++) {
+        ASSERT_TRUE(t->data[i] >= 0.0f);
+        ASSERT_TRUE(t->data[i] < 1.0f);
+        if(t->data[i] < lo)
+            lo = t->data[i];
+        if(t->data[i] > hi)
+            hi = t->data[i];
+    }
+    ASSERT_TRUE(hi > lo);  // there's variation, not a constant
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// TARGET (currently FAILS — randn is still a uniform stub): a standard-normal
+// generator must produce NEGATIVE values. uniform [0,1) never does. When randn
+// is real (Box-Muller / etc.), ~half of a big sample is < 0.
+UTEST(pico_randn, produces_negatives) {
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1000};
+    struct PicoTensor* t = pico_randn(ar, s, 1);
+
+    int found_negative = 0;
+    for(int64_t i = 0; i < t->numel; i++) {
+        if(t->data[i] < 0.0f) {
+            found_negative = 1;
+            break;
+        }
+    }
+
+    // tear down BEFORE asserting: this fails on purpose (randn is a uniform stub),
+    // and a failed ASSERT returns early — asserting first would skip the pop and
+    // leave this arena on the ctx stack, breaking later arena_ctx tests.
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(found_negative);  // FAILS until randn is a real normal distribution
 }

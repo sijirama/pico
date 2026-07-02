@@ -39,3 +39,41 @@ static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b,
             pico_matmul_cpu_scalar(a, b, out);
     }
 }
+
+// unary element-wise math. same switch shape as above — ripe for the future
+// pico_op_cpu(a, out, op) bundling once there's more than one SIMD variant.
+
+static inline void pico_sqrt_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_sqrt_cpu_scalar(a, out);
+    }
+}
+
+static inline void pico_sin_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_sin_cpu_scalar(a, out);
+    }
+}
+
+static inline void pico_cos_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_cos_cpu_scalar(a, out);
+    }
+}
+
+static inline void pico_tan_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_tan_cpu_scalar(a, out);
+    }
+}
+
+static inline void pico_tanh_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_tanh_cpu_scalar(a, out);
+    }
+}
