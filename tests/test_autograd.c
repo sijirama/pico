@@ -577,3 +577,310 @@ UTEST(backward_full, matmul_shared_parent) {
     arena_ctx_pop();
     arena_destroy(ar);
 }
+
+// ===================================================================
+//  BROADCAST BACKWARD — different-ndim parents (the map_index path).
+//  The whole point: a smaller parent is STRETCHED forward, so its grad
+//  must be the SUM of every output cell it fed. map_index + '+=' does it.
+// ===================================================================
+
+// add, ROW broadcast: (2,2) + (2,)  ->  b is stretched DOWN the rows.
+//   self[r][c] = a[r][c] + b[c]      (b[c] reused in both rows)
+// upstream grad = [[1,2],[3,4]]
+//   a.grad = same shape, passes straight through -> [1,2,3,4]
+//   b.grad[c] = sum over rows -> b0 = g(0,0)+g(1,0)=1+3=4 ; b1 = g(0,1)+g(1,1)=2+4=6
+UTEST(broadcast_backward, add_row) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(sb, 1);  // 1D -> different ndim
+
+    struct PicoTensor* c = pico_add(a, b);
+    ASSERT_EQ(c->ndim, 2);
+    ASSERT_EQ(c->numel, 4);
+
+    float g[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) c->grad[i] = g[i];
+    c->_backward(c);
+
+    ASSERT_TRUE(a->grad[0] == 1.0f);
+    ASSERT_TRUE(a->grad[1] == 2.0f);
+    ASSERT_TRUE(a->grad[2] == 3.0f);
+    ASSERT_TRUE(a->grad[3] == 4.0f);
+    ASSERT_TRUE(b->grad[0] == 4.0f);  // 1 + 3  (summed down the stretch)
+    ASSERT_TRUE(b->grad[1] == 6.0f);  // 2 + 4
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// add, COLUMN broadcast: (2,2) + (2,1)  ->  b is stretched ACROSS the columns.
+//   self[r][c] = a[r][c] + b[r]      (b[r] reused across both columns)
+// upstream grad = [[1,2],[3,4]]
+//   b.grad[r] = sum over cols -> b0 = g(0,0)+g(0,1)=1+2=3 ; b1 = g(1,0)+g(1,1)=3+4=7
+// (different axis than the row test — proves map_index picks the right dim.)
+UTEST(broadcast_backward, add_col) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    int64_t sb[] = {2, 1};
+    struct PicoTensor* b = pico_param(sb, 2);
+
+    struct PicoTensor* c = pico_add(a, b);
+
+    float g[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) c->grad[i] = g[i];
+    c->_backward(c);
+
+    ASSERT_TRUE(b->grad[0] == 3.0f);  // 1 + 2  (summed across the stretch)
+    ASSERT_TRUE(b->grad[1] == 7.0f);  // 3 + 4
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// sub, ROW broadcast: (2,2) - (2,)  ->  a passes through, b's side is NEGATED
+//   then summed down the stretch. upstream grad = [[1,2],[3,4]]
+//   b.grad[c] = -(sum over rows) -> b0 = -(1+3) = -4 ; b1 = -(2+4) = -6
+UTEST(broadcast_backward, sub_row) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(sb, 1);
+
+    struct PicoTensor* c = pico_sub(a, b);
+
+    float g[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) c->grad[i] = g[i];
+    c->_backward(c);
+
+    ASSERT_TRUE(a->grad[0] == 1.0f);
+    ASSERT_TRUE(a->grad[3] == 4.0f);
+    ASSERT_TRUE(b->grad[0] == -4.0f);  // negated + summed
+    ASSERT_TRUE(b->grad[1] == -6.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// ===================================================================
+//  ELEMENT-WISE MUL (pico_mul) — Hadamard product, forward + backward.
+// ===================================================================
+
+// forward, same shape: out[i] = a[i] * b[i]
+UTEST(mul, forward_elementwise) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {3};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* b = pico_param(s, 1);
+    float av[] = {1, 2, 3};
+    float bv[] = {4, 5, 6};
+    for(int i = 0; i < 3; i++) {
+        a->data[i] = av[i];
+        b->data[i] = bv[i];
+    }
+
+    struct PicoTensor* c = pico_mul(a, b);
+
+    ASSERT_TRUE(c->data[0] == 4.0f);   // 1*4
+    ASSERT_TRUE(c->data[1] == 10.0f);  // 2*5
+    ASSERT_TRUE(c->data[2] == 18.0f);  // 3*6
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// forward, broadcast: (2,2) * (2,) -> b[c] reused down the rows
+//   a=[[1,2],[3,4]], b=[10,20] -> [[10,40],[30,80]]
+UTEST(mul, forward_broadcast) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(sb, 1);
+    b->data[0] = 10.0f;
+    b->data[1] = 20.0f;
+
+    struct PicoTensor* c = pico_mul(a, b);
+    ASSERT_EQ(c->ndim, 2);
+    ASSERT_EQ(c->numel, 4);
+
+    ASSERT_TRUE(c->data[0] == 10.0f);  // 1*10
+    ASSERT_TRUE(c->data[1] == 40.0f);  // 2*20
+    ASSERT_TRUE(c->data[2] == 30.0f);  // 3*10
+    ASSERT_TRUE(c->data[3] == 80.0f);  // 4*20
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// pico_mul wires the graph: two parents + backward attached
+UTEST(mul, wires_graph) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* b = pico_param(s, 1);
+    struct PicoTensor* c = pico_mul(a, b);
+
+    ASSERT_EQ(c->num_parents, 2);
+    ASSERT_TRUE(c->parents[0] == a);
+    ASSERT_TRUE(c->parents[1] == b);
+    ASSERT_TRUE(c->_backward != NULL);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// backward, SAME SHAPE: d(a*b)/da = b, d(a*b)/db = a  (the local factor is the
+// OTHER parent's data). same-shape so ia==ib==i and the trap doesn't bite.
+//   a=[2,3], b=[4,5], upstream g=[10,100]
+//   a.grad = g*b = [10*4, 100*5] = [40,500]
+//   b.grad = g*a = [10*2, 100*3] = [20,300]
+UTEST(mul, backward_same_shape) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* b = pico_param(s, 1);
+    a->data[0] = 2.0f;
+    a->data[1] = 3.0f;
+    b->data[0] = 4.0f;
+    b->data[1] = 5.0f;
+
+    struct PicoTensor* c = pico_mul(a, b);
+    c->grad[0] = 10.0f;
+    c->grad[1] = 100.0f;
+    c->_backward(c);
+
+    ASSERT_TRUE(a->grad[0] == 40.0f);   // 10*4
+    ASSERT_TRUE(a->grad[1] == 500.0f);  // 100*5
+    ASSERT_TRUE(b->grad[0] == 20.0f);   // 10*2
+    ASSERT_TRUE(b->grad[1] == 300.0f);  // 100*3
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// calling backward twice ACCUMULATES (+=), same rule as every other op
+UTEST(mul, backward_accumulates) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* a = pico_param(s, 1);
+    struct PicoTensor* b = pico_param(s, 1);
+    a->data[0] = 3.0f;
+    b->data[0] = 7.0f;
+
+    struct PicoTensor* c = pico_mul(a, b);
+    c->grad[0] = 1.0f;
+    c->_backward(c);
+    c->_backward(c);
+
+    ASSERT_TRUE(a->grad[0] == 14.0f);  // (1*7) twice
+    ASSERT_TRUE(b->grad[0] == 6.0f);   // (1*3) twice
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// backward, BROADCAST: (2,2) * (2,) -> THE trap case, now that the OTHER parent is
+// read at its MAPPED index. self[r][c] = a[r][c] * b[c]
+//   a.grad[r][c] = g[r][c] * b[c]           (each a-cell scaled by ITS b, via ib)
+//   b.grad[c]    = sum_r g[r][c] * a[r][c]  (summed down the stretch)
+//   a=[[1,2],[3,4]], b=[10,20], g=[[1,2],[3,4]]
+//   a.grad = [1*10, 2*20, 3*10, 4*20] = [10,40,30,80]
+//   b.grad[0] = 1*1 + 3*3 = 10 ; b.grad[1] = 2*2 + 4*4 = 20
+UTEST(broadcast_backward, mul_row) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    float av[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(sb, 1);
+    b->data[0] = 10.0f;
+    b->data[1] = 20.0f;
+
+    struct PicoTensor* c = pico_mul(a, b);
+
+    float g[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) c->grad[i] = g[i];
+    c->_backward(c);
+
+    ASSERT_TRUE(a->grad[0] == 10.0f);  // 1*b0
+    ASSERT_TRUE(a->grad[1] == 40.0f);  // 2*b1
+    ASSERT_TRUE(a->grad[2] == 30.0f);  // 3*b0
+    ASSERT_TRUE(a->grad[3] == 80.0f);  // 4*b1
+    ASSERT_TRUE(b->grad[0] == 10.0f);  // 1*1 + 3*3 (summed down the stretch)
+    ASSERT_TRUE(b->grad[1] == 20.0f);  // 2*2 + 4*4
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// same thing but through the FULL traversal (seeds grad=1, walks): the bias
+// pattern in miniature. self = a + b, b stretched -> b.grad should be N (row count).
+//   (2,2) + (2,), grad seeded to 1 everywhere:
+//   a.grad = [1,1,1,1] ; b.grad = [2,2]  (each b elem fed 2 rows)
+UTEST(broadcast_backward, add_row_through_pico_backward) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(sa, 2);
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(sb, 1);
+
+    struct PicoTensor* c = pico_add(a, b);
+    pico_backward(ar, c);  // seeds c->grad = 1, walks
+
+    ASSERT_TRUE(a->grad[0] == 1.0f);
+    ASSERT_TRUE(a->grad[3] == 1.0f);
+    ASSERT_TRUE(b->grad[0] == 2.0f);  // summed over 2 rows
+    ASSERT_TRUE(b->grad[1] == 2.0f);
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}

@@ -28,15 +28,23 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
 void pico_free(struct PicoTensor* tensor);
 
 // ====================================== important ops
-// TODO: siji don't forget about these guys 
+// TODO: siji don't forget about these guys
 
 void pico_transpose(struct PicoTensor* tensor);
 void pico_transpose_2d(struct PicoTensor* tensor);
 
-void pico_transpose_reshape(struct PicoTensor* tensor, int64_t * shape, int ndim );
+void pico_transpose_reshape(struct PicoTensor* tensor, int64_t* shape, int ndim);
 
 struct PicoTensor* pico_transpose_clone(struct PicoTensor* tensor);
 
+struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim);
+
+// returns a tensor filled with random numbers from a uniform distribution on the interval ([0,1])
+struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim);
+
+// returns a tensor filled with random numbers drawn from a standard normal distribution (Gaussian
+// distribution) with a mean of 0 and a variance (and standard deviation) of 1
+struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim);
 
 // ============================= helpers
 
@@ -90,6 +98,9 @@ static inline int64_t* pad_shape(struct Arena* arena, struct PicoTensor* smaller
 //   - unravel global_i into coords using the (contiguous) output strides
 //   - for each output dim, find the matching source dim (offset by `diff`)
 //   - a prepended dim (sd < 0) or a size-1 dim contributes 0 -> reuse (the stretch)
+//
+//   give us an index of t that's the same with global_index when the stride has been stretched to
+//   match out - sijirama
 static inline int64_t map_index(int64_t global_i, struct PicoTensor* t, int64_t* out_strides,
                                 int out_ndim) {
     int64_t mapped_idx = 0;

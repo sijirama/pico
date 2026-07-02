@@ -45,15 +45,21 @@
 
 #pragma once
 
+#include <stdint.h>
 #include "tensor.h"
 
 static inline void pico_add_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
 
+    int64_t ia = 0;
+    int64_t ib = 0;
+
     for(int64_t i = 0; i < self->numel; i++) {
-        a->grad[i] += self->grad[i];
-        b->grad[i] += self->grad[i];
+        ia = map_index(i, a, self->strides, self->ndim);
+        ib = map_index(i, b, self->strides, self->ndim);
+        a->grad[ia] += self->grad[i];
+        b->grad[ib] += self->grad[i];
     }
 }
 
@@ -61,9 +67,13 @@ static inline void pico_sub_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
 
+    int64_t ia = 0;
+    int64_t ib = 0;
     for(int64_t i = 0; i < self->numel; i++) {
-        a->grad[i] += self->grad[i];
-        b->grad[i] -= self->grad[i];
+        ia = map_index(i, a, self->strides, self->ndim);
+        ib = map_index(i, b, self->strides, self->ndim);
+        a->grad[ia] += self->grad[i];
+        b->grad[ib] -= self->grad[i];
     }
 }
 
@@ -71,9 +81,13 @@ static inline void pico_mul_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
 
+    int64_t ia = 0;
+    int64_t ib = 0;
     for(int64_t i = 0; i < self->numel; i++) {
-        a->grad[i] += self->grad[i] * b->data[i];
-        b->grad[i] += self->grad[i] * a->data[i];
+        ia = map_index(i, a, self->strides, self->ndim);
+        ib = map_index(i, b, self->strides, self->ndim);
+        a->grad[ia] += self->grad[i] * b->data[ib];
+        b->grad[ib] += self->grad[i] * a->data[ia];
     }
 }
 

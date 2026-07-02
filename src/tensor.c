@@ -7,6 +7,7 @@
 
 #include "arena.h"
 #include "lib/pico_vector.h"
+#include "ops.h"
 
 void postorder(struct PicoTensor* root, struct PicoVec* vector, struct PicoVec* visited);
 
@@ -180,6 +181,81 @@ void pico_transpose_2d(struct PicoTensor* tensor) {
     tensor->strides[1] = tensor->strides[0];
     tensor->strides[0] = sc;
 }
+
+// ============================= pico_rand
+
+static uint32_t x_state = 123456789;  // Ultra-fast state variables (non-zero seeds)
+
+// Fast Xorshift32 generator
+static inline uint32_t xorshift32(void) {
+    uint32_t x = x_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return x_state = x;
+}
+
+// Bulk generate floats directly via IEEE-754 bit-casting
+void generate_random_floats_fast(float* arr, size_t size) {
+    for(size_t i = 0; i < size; i++) {
+        uint32_t r = xorshift32();
+        // Construct a float in the range [1.0, 2.0) by setting mantissa bits
+        uint32_t bits = (r >> 9) | 0x3F800000;
+        float f = *(float*)&bits;
+        arr[i] = f - 1.0f;  // Shift range down to [0.0, 1.0)
+    }
+}
+
+struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) {
+    struct PicoTensor* tensor = pico_create_tensor(arena, shape, ndim);
+    // dispatch properly into backends
+    x_state = (uint32_t)time(NULL);
+    generate_random_floats_fast(tensor->data, tensor->numel);
+    return tensor;
+}
+
+// ============================= pico_randn
+
+/*
+ *dubs
+ *import torch
+
+# 1. PyTorch allocates space and generates flat uniform numbers [0, 1)
+# For a requested size of 1000, it creates two blocks of 500
+u1 = torch.rand(500)
+u2 = torch.rand(500)
+
+# 2. It applies the math to the entire tensor at once (Vectorization)
+# No loops! The computer processes these arrays in parallel rows.
+mag = torch.sqrt(-2.0 * torch.log(u1))
+angle = 2.0 * torch.pi * u2
+
+# 3. Box-Muller gives TWO normal numbers per pair using cos and sin
+z0 = mag * torch.cos(angle)
+z1 = mag * torch.sin(angle)
+
+# 4. Combine them into the final 1000-element tensor you asked for
+final_randn_tensor = torch.cat([z0, z1])
+
+ *
+ * */
+
+struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim) {
+    struct PicoTensor* tensor = pico_rand(arena, shape, ndim);
+
+    int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
+    memcpy(res_shape, shape, sizeof(int64_t) * ndim);
+    res_shape[ndim - 1] = res_shape[ndim - 1] / 2;
+
+    struct PicoTensor* u1 = pico_rand(arena, res_shape, ndim);
+    struct PicoTensor* u2 = pico_rand(arena, res_shape, ndim);
+
+    // struct PicoTensor* mag = pico_tensor_sqrt()
+
+    return tensor;
+}
+
+// ============================= end
 
 uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTensor* b) {
     int ndim_a = a->ndim;
