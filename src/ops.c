@@ -283,7 +283,7 @@ struct PicoTensor* pico_tensor_sqrt(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: sqrt backward
+    out->_backward = pico_tensor_sqrt_backward;
 
     return out;
 }
@@ -305,7 +305,7 @@ struct PicoTensor* pico_tensor_sin(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: sin backward (cos)
+    out->_backward = pico_tensor_sin_backward;
 
     return out;
 }
@@ -327,7 +327,7 @@ struct PicoTensor* pico_tensor_cos(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: cos backward (-sin)
+    out->_backward = pico_tensor_cos_backward;
 
     return out;
 }
@@ -349,7 +349,7 @@ struct PicoTensor* pico_tensor_tan(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: tan backward (sec^2)
+    out->_backward = pico_tensor_tan_backward;
 
     return out;
 }
@@ -371,7 +371,7 @@ struct PicoTensor* pico_tensor_tanh(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: tanh backward (1 - tanh^2)
+    out->_backward = pico_tensor_tanh_backward;
 
     return out;
 }
@@ -393,7 +393,7 @@ struct PicoTensor* pico_tensor_log(struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = NULL;  // TODO: log backward (1/x)
+    out->_backward = pico_tensor_log_backward;
 
     return out;
 }
