@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "arena.h"
+#include "global.h"
 #include "lib/pico_vector.h"
 #include "ops.h"
 
@@ -166,6 +167,26 @@ void pico_free(struct PicoTensor* tensor) {
     free(tensor);
 }
 
+// a 1-element tensor holding `value`. shape {1} -> broadcasts against anything via
+// map_index (the size-1 dim is stretched). leaf tensor: no parents, _backward NULL
+// (pico_create_tensor already sets those), so it acts as a constant in the graph.
+struct PicoTensor* pico_tensor_from_scalar(float value) {
+    struct Arena* arena = arena_ctx_current();
+    if(arena == NULL) {
+        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        return NULL;
+    }
+
+    int64_t shape[1] = {1};
+    struct PicoTensor* tensor = pico_create_tensor(arena, shape, 1);
+    if(tensor == NULL) {
+        return NULL;
+    }
+    tensor->data[0] = value;
+
+    return tensor;
+}
+
 void pico_transpose_2d(struct PicoTensor* tensor) {
     if(tensor->ndim != 2) {
         fprintf(stderr, "Error: This is not a rank 2 tensor!\n");
@@ -183,8 +204,6 @@ void pico_transpose_2d(struct PicoTensor* tensor) {
 }
 
 // ============================= pico_rand
-
-static uint32_t x_state = 123456789;  // Ultra-fast state variables (non-zero seeds)
 
 // Fast Xorshift32 generator
 static inline uint32_t xorshift32(void) {
@@ -209,7 +228,6 @@ void generate_random_floats_fast(float* arr, size_t size) {
 struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) {
     struct PicoTensor* tensor = pico_create_tensor(arena, shape, ndim);
     // dispatch properly into backends
-    x_state = (uint32_t)time(NULL);
     generate_random_floats_fast(tensor->data, tensor->numel);
     return tensor;
 }
@@ -241,8 +259,6 @@ final_randn_tensor = torch.cat([z0, z1])
  * */
 
 struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim) {
-    struct PicoTensor* tensor = pico_rand(arena, shape, ndim);
-
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     memcpy(res_shape, shape, sizeof(int64_t) * ndim);
     res_shape[ndim - 1] = res_shape[ndim - 1] / 2;
@@ -250,7 +266,15 @@ struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim)
     struct PicoTensor* u1 = pico_rand(arena, res_shape, ndim);
     struct PicoTensor* u2 = pico_rand(arena, res_shape, ndim);
 
-    // struct PicoTensor* mag = pico_tensor_sqrt()
+    struct PicoTensor* mag =
+        pico_tensor_sqrt(pico_mul(pico_tensor_from_scalar(-2.0), pico_tensor_log(u1)));
+    struct PicoTensor* angle =
+        pico_mul(pico_tensor_from_scalar(2.0), pico_mul(pico_tensor_from_scalar(PI_F), u2));
+
+    struct PicoTensor* z0 = pico_mul(mag, pico_tensor_cos(angle));
+    struct PicoTensor* z1 = pico_mul(mag, pico_tensor_sin(angle));
+
+    struct PicoTensor* tensor = pico_cat(z0, z1, 0);
 
     return tensor;
 }

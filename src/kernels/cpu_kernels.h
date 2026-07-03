@@ -77,3 +77,10 @@ static inline void pico_tanh_cpu(struct PicoTensor* a, struct PicoTensor* out) {
             pico_tanh_cpu_scalar(a, out);
     }
 }
+
+static inline void pico_log_cpu(struct PicoTensor* a, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        default:
+            pico_log_cpu_scalar(a, out);
+    }
+}

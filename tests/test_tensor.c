@@ -3,7 +3,10 @@
  * These tests describe what pico_param SHOULD do; use them to drive the fixes.
  */
 
+#include <math.h>
+
 #include "arena.h"
+#include "ops.h"
 #include "tensor.h"
 #include "utest.h"
 
@@ -136,6 +139,49 @@ UTEST(pico_free, frees_a_param) {
 }
 
 // ===================================================================
+//  pico_tensor_from_scalar
+// ===================================================================
+
+// a scalar tensor is a single element holding the value
+UTEST(pico_tensor_from_scalar, holds_value) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    struct PicoTensor* s = pico_tensor_from_scalar(3.5f);
+    ASSERT_TRUE(s != NULL);
+    ASSERT_EQ(s->ndim, 1);
+    ASSERT_EQ(s->numel, 1);
+    ASSERT_TRUE(s->data[0] == 3.5f);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// the whole point: it broadcasts against a bigger tensor through pico_mul.
+// from_scalar(2) * [1,2,3] -> [2,4,6]
+UTEST(pico_tensor_from_scalar, broadcasts_through_mul) {
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {3};
+    struct PicoTensor* t = pico_param(s, 1);
+    t->data[0] = 1.0f;
+    t->data[1] = 2.0f;
+    t->data[2] = 3.0f;
+
+    struct PicoTensor* out = pico_mul(pico_tensor_from_scalar(2.0f), t);
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->numel, 3);
+    ASSERT_TRUE(out->data[0] == 2.0f);
+    ASSERT_TRUE(out->data[1] == 4.0f);
+    ASSERT_TRUE(out->data[2] == 6.0f);
+
+    pico_free(t);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// ===================================================================
 //  pico_rand / pico_randn  (these describe the TARGET behavior)
 // ===================================================================
 
@@ -206,4 +252,35 @@ UTEST(pico_randn, produces_negatives) {
     arena_destroy(ar);
 
     ASSERT_TRUE(found_negative);  // FAILS until randn is a real normal distribution
+}
+
+// the REAL spec: randn is a STANDARD normal -> over a big sample, mean ~ 0 and
+// std ~ 1. "produces negatives" alone would pass for any symmetric noise.
+UTEST(pico_randn, is_standard_normal) {
+    struct Arena* ar = arena_init(1 << 22);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {10000};
+    struct PicoTensor* t = pico_randn(ar, s, 1);
+
+    double sum = 0.0;
+    for(int64_t i = 0; i < t->numel; i++) sum += t->data[i];
+    double mean = sum / (double)t->numel;
+
+    double sq = 0.0;
+    for(int64_t i = 0; i < t->numel; i++) {
+        double d = t->data[i] - mean;
+        sq += d * d;
+    }
+    double stddev = sqrt(sq / (double)t->numel);
+
+    int64_t n = t->numel;
+
+    // capture + teardown before asserting (fail-safe for the ctx stack)
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_EQ(n, 10000);                          // cat(z0,z1) reassembles the full size
+    ASSERT_TRUE(mean > -0.1 && mean < 0.1);       // centered on 0
+    ASSERT_TRUE(stddev > 0.85 && stddev < 1.15);  // unit variance
 }

@@ -81,3 +81,10 @@ static inline void pico_tanh_cpu_scalar(struct PicoTensor* a, struct PicoTensor*
         out->data[i] = tanh(a->data[i]);
     }
 }
+
+// natural log (matches torch.log). undefined for x <= 0 (logf(0) = -inf).
+static inline void pico_log_cpu_scalar(struct PicoTensor* a, struct PicoTensor* out) {
+    for(int64_t i = 0; i < out->numel; i++) {
+        out->data[i] = logf(a->data[i]);
+    }
+}

@@ -114,6 +114,25 @@ UTEST(unary, tanh_forward) {
     arena_destroy(ar);
 }
 
+// natural log: log(1)=0 (exact), log(e)=1
+UTEST(unary, log_forward) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = 1.0f;
+    x->data[1] = 2.71828182845904523536f;  // e
+
+    struct PicoTensor* out = pico_tensor_log(x);
+    ASSERT_TRUE(out->data[0] == 0.0f);
+    ASSERT_TRUE(NEAR(out->data[1], 1.0f));
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
 // output keeps the input shape and wires the single parent (unary op)
 UTEST(unary, preserves_shape_and_wires_parent) {
     struct Arena* ar = arena_init(4096);

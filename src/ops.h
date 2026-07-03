@@ -12,3 +12,4 @@ struct PicoTensor* pico_tensor_sin(struct PicoTensor* a);
 struct PicoTensor* pico_tensor_cos(struct PicoTensor* a);
 struct PicoTensor* pico_tensor_tan(struct PicoTensor* a);
 struct PicoTensor* pico_tensor_tanh(struct PicoTensor* a);
+struct PicoTensor* pico_tensor_log(struct PicoTensor* a);

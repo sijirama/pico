@@ -375,3 +375,25 @@ struct PicoTensor* pico_tensor_tanh(struct PicoTensor* a) {
 
     return out;
 }
+
+struct PicoTensor* pico_tensor_log(struct PicoTensor* a) {
+    struct Arena* arena = arena_ctx_current();
+    if(arena == NULL) {
+        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        return NULL;
+    }
+
+    struct PicoTensor* out = pico_create_tensor(arena, a->shape, a->ndim);
+    out->backend = a->backend;
+
+    if(a->backend == CPU) {
+        pico_log_cpu(a, out);
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
+    out->parents[0] = a;
+    out->num_parents = 1;
+    out->_backward = NULL;  // TODO: log backward (1/x)
+
+    return out;
+}
