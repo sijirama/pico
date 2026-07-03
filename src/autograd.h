@@ -45,7 +45,9 @@
 
 #pragma once
 
+#include <math.h>
 #include <stdint.h>
+
 #include "tensor.h"
 
 static inline void pico_add_backward(struct PicoTensor* self) {
@@ -109,7 +111,8 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
                 acc += self->grad[i * self->strides[0] + j * self->strides[1]] *
                        b->data[k * b->strides[0] + j * b->strides[1]];
             }
-            a->grad[i * a->strides[0] + k * a->strides[1]] += acc;  // += : accumulate across consumers
+            a->grad[i * a->strides[0] + k * a->strides[1]] +=
+                acc;  // += : accumulate across consumers
         }
     }
 
@@ -123,5 +126,51 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
             }
             b->grad[k * b->strides[0] + j * b->strides[1]] += acc;
         }
+    }
+}
+
+static inline void pico_tensor_sqrt_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * (1 / (2 * self->data[i]));
+    }
+}
+
+static inline void pico_tensor_sin_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * cos(a->data[i]);
+    }
+}
+
+static inline void pico_tensor_cos_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] -= self->grad[i] * sin(a->data[i]);
+    }
+}
+
+static inline double sec(double x) {
+    return 1.0 / cos(x);
+}
+
+static inline void pico_tensor_tan_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * (powf(sec(a->data[i]), 2));
+    }
+}
+
+static inline void pico_tensor_tanh_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * 1 - (powf(self->data[i], 2));
+    }
+}
+
+static inline void pico_tensor_log_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    for(int i = 0; i < self->numel; i++) {
+        a->grad[i] += self->grad[i] * 1 / a->data[i];
     }
 }

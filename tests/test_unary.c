@@ -154,24 +154,137 @@ UTEST(unary, preserves_shape_and_wires_parent) {
     arena_destroy(ar);
 }
 
-// PUNCH-LIST (fails now): forward-only, so _backward is NULL. this stays red until
-// the unary backwards (sin'=cos, cos'=-sin, tan'=sec^2, tanh'=1-tanh^2,
-// sqrt'=1/(2*sqrt)) are wired. same for cos/tan/tanh/sqrt — sin stands in for all.
-UTEST(unary, backward_is_todo) {
+// ===================================================================
+//  UNARY BACKWARDS — PUNCH-LIST. each asserts x.grad = upstream * f'(x).
+//  upstream grad is 2 (not 1) so a backward that forgets to multiply by
+//  self->grad also fails. red until the bodies in autograd.h are filled;
+//  capture -> teardown -> assert so a failure doesn't leak the ctx stack.
+// ===================================================================
+
+// sqrt'(x) = 1/(2*sqrt(x)).  x=4 -> 1/4 = 0.25 ; * upstream 2 = 0.5
+UTEST(unary_backward, sqrt) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    int64_t s[] = {2};
+    int64_t s[] = {1};
     struct PicoTensor* x = pico_param(s, 1);
-    struct PicoTensor* out = pico_tensor_sin(x);
-    int has_backward = (out->_backward != NULL);
+    x->data[0] = 4.0f;
 
-    // tear down BEFORE asserting: this test fails on purpose, and utest returns
-    // on a failed ASSERT — asserting first would skip the pop and leave this arena
-    // on the ctx stack, polluting later arena_ctx tests.
+    struct PicoTensor* out = pico_tensor_sqrt(x);
+    out->grad[0] = 2.0f;  // upstream
+    out->_backward(out);
+    float gx = x->grad[0];
+
     pico_free(x);
     arena_ctx_pop();
     arena_destroy(ar);
 
-    ASSERT_TRUE(has_backward);  // TODO: wire the unary backwards
+    ASSERT_TRUE(NEAR(gx, 0.5f));
+}
+
+// sin'(x) = cos(x).  x=pi -> cos(pi) = -1 ; * 2 = -2.
+// (x=pi, not 0: at 0, sin(0)=0 so cos(output)==cos(input) and the input-vs-output
+// bug hides. at pi it's exposed — cos(sin(pi)) ~ 1, but cos(pi) = -1.)
+UTEST(unary_backward, sin) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = PI_F;
+
+    struct PicoTensor* out = pico_tensor_sin(x);
+    out->grad[0] = 2.0f;
+    out->_backward(out);
+    float gx = x->grad[0];
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(NEAR(gx, -2.0f));
+}
+
+// cos'(x) = -sin(x).  x=pi/2 -> -1 ; * 2 = -2  (x=0 would be 0, can't tell from a no-op)
+UTEST(unary_backward, cos) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = PI_F / 2.0f;
+
+    struct PicoTensor* out = pico_tensor_cos(x);
+    out->grad[0] = 2.0f;
+    out->_backward(out);
+    float gx = x->grad[0];
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(NEAR(gx, -2.0f));
+}
+
+// tan'(x) = sec^2(x) = 1/cos^2(x).  x=0 -> 1 ; * 2 = 2
+UTEST(unary_backward, tan) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = 0.0f;
+
+    struct PicoTensor* out = pico_tensor_tan(x);
+    out->grad[0] = 2.0f;
+    out->_backward(out);
+    float gx = x->grad[0];
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(NEAR(gx, 2.0f));
+}
+
+// tanh'(x) = 1 - tanh^2(x).  x=0 -> 1 ; * 2 = 2
+UTEST(unary_backward, tanh) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = 0.0f;
+
+    struct PicoTensor* out = pico_tensor_tanh(x);
+    out->grad[0] = 2.0f;
+    out->_backward(out);
+    float gx = x->grad[0];
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(NEAR(gx, 2.0f));
+}
+
+// log'(x) = 1/x.  x=2 -> 0.5 ; * 2 = 1
+UTEST(unary_backward, log) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1};
+    struct PicoTensor* x = pico_param(s, 1);
+    x->data[0] = 2.0f;
+
+    struct PicoTensor* out = pico_tensor_log(x);
+    out->grad[0] = 2.0f;
+    out->_backward(out);
+    float gx = x->grad[0];
+
+    pico_free(x);
+    arena_ctx_pop();
+    arena_destroy(ar);
+
+    ASSERT_TRUE(NEAR(gx, 1.0f));
 }
