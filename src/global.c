@@ -9,6 +9,7 @@
 SimdLevel g_simd_level = SIMD_NONE;
 GpuBackend g_gpu_backend = GPU_UNKNOWN;
 int g_pico_initialized = 0;
+uint32_t x_state = 123456789;  // Ultra-fast state variables (non-zero seeds)
 
 // the ONE real definition of the arena ctx stack (declared extern in arena.h)
 thread_local struct Arena* arena_stack[MAX_ARENA_STACK];
@@ -33,4 +34,6 @@ void pico_init(void) {
     g_pico_initialized = 1;
 
     printf("[PICO] Pico ready.\n");
+
+    x_state = (uint32_t)time(NULL);
 }

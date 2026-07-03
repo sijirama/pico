@@ -4,6 +4,7 @@
 
 #include "arena.h"
 
+#define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
 typedef enum { CPU, GPU } PicoBackend;
 
 struct PicoTensor {
@@ -24,6 +25,11 @@ void pico_backward(struct Arena* arena, struct PicoTensor* entry);
 
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim);
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim);
+
+// a 1-element tensor (shape {1}) holding a single scalar. broadcasts against any
+// shape, so you can do pico_mul(pico_tensor_from_scalar(2.0f), t). uses the current
+// ctx arena (composes with the ops, which also use arena_ctx_current()).
+struct PicoTensor* pico_tensor_from_scalar(float value);
 
 void pico_free(struct PicoTensor* tensor);
 
