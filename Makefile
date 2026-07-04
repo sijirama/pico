@@ -28,6 +28,11 @@ TEST_SRCS = $(shell find $(TEST_DIR) -name '*.c')
 TEST_OBJS = $(patsubst %, $(OBJ_DIR)/test_%.o, $(basename $(notdir $(TEST_SRCS))))
 vpath %.c $(sort $(dir $(TEST_SRCS)))
 
+# Auto-generated header dependency files (one .d per .o, emitted by -MMD -MP).
+# Pulled back in via `-include` at the bottom so editing a .h recompiles the .c
+# files that include it — no more stale obj/ ghosts.
+DEPS = $(OBJS:.o=.d) $(MAIN_OBJ:.o=.d) $(TEST_OBJS:.o=.d)
+
 all: $(TARGET)
 
 $(TARGET): $(OBJS) $(MAIN_OBJ)
@@ -37,11 +42,11 @@ $(TARGET): $(OBJS) $(MAIN_OBJ)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling $<..."
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 $(OBJ_DIR)/test_%.o: %.c | $(OBJ_DIR)
 	@echo "Compiling test $<..."
-	@$(CC) $(CFLAGS) -I $(TEST_DIR) -c $< -o $@
+	@$(CC) $(CFLAGS) -I $(TEST_DIR) -MMD -MP -c $< -o $@
 
 $(TEST_TARGET): $(OBJS) $(TEST_OBJS)
 	@echo "Linking $@..."
@@ -70,5 +75,8 @@ clean:
 	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET) $(ASAN_TARGET) a.out
 
 rebuild: clean all
+
+# pull in the auto-generated header deps (silent if they don't exist yet)
+-include $(DEPS)
 
 .PHONY: all test run clean rebuild asan
