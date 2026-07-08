@@ -1,0 +1,42 @@
+# Copy this Makefile into a new example or benchmark directory.
+#
+# Layout expected:
+#
+#   examples/my_example/
+#     Makefile
+#     main.c
+#
+# Run:
+#
+#   cd examples/my_example
+#   make run
+#
+# What happens:
+#
+#   1. The root Makefile refreshes ../../lib/libpico.a.
+#   2. This example compiles main.c.
+#   3. The example links against libpico.a with -L ../../lib -lpico.
+#   4. `make run` executes the example binary.
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -I ../../src
+LDFLAGS = -L ../../lib -lpico -lm -pthread
+
+TARGET = change_me
+
+all: $(TARGET)
+
+pico-lib:
+	$(MAKE) -C ../.. lib
+	@echo "pico static library is ready."
+
+$(TARGET): main.c pico-lib
+	$(CC) $(CFLAGS) main.c -o $(TARGET) $(LDFLAGS)
+
+run: $(TARGET)
+	./$(TARGET)
+
+clean:
+	rm -f $(TARGET)
+
+.PHONY: all pico-lib run clean

@@ -1,4 +1,5 @@
 CC = gcc
+AR = ar
 CFLAGS = -std=c11 -I src -g -Wall -pthread
 LDFLAGS = -lm -pthread
 
@@ -6,10 +7,12 @@ SRC_DIR = src
 INC_DIR = src
 TEST_DIR = tests
 OBJ_DIR = obj
+LIB_DIR = lib
 
 TARGET = pico
 TEST_TARGET = test_pico
 ASAN_TARGET = test_pico_asan
+STATIC_LIB = $(LIB_DIR)/libpico.a
 
 # AddressSanitizer: detects leaks, use-after-free, double-free, overflows.
 # Slower + more memory, so it's a separate dev-only target (never shipped).
@@ -35,9 +38,17 @@ DEPS = $(OBJS:.o=.d) $(MAIN_OBJ:.o=.d) $(TEST_OBJS:.o=.d)
 
 all: $(TARGET)
 
+lib: $(STATIC_LIB)
+
 $(TARGET): $(OBJS) $(MAIN_OBJ)
 	@echo "Linking $@..."
 	@$(CC) $^ -o $@ $(LDFLAGS)
+
+$(STATIC_LIB): $(OBJS)
+	@echo "Archiving $@..."
+	@mkdir -p $(LIB_DIR)
+	@$(AR) rcs $@ $^
+	@echo "Archive ready: $@"
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling $<..."
@@ -72,11 +83,11 @@ asan:
 
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET) $(ASAN_TARGET) a.out
+	@rm -rf $(OBJ_DIR) $(LIB_DIR) $(TARGET) $(TEST_TARGET) $(ASAN_TARGET) a.out
 
 rebuild: clean all
 
 # pull in the auto-generated header deps (silent if they don't exist yet)
 -include $(DEPS)
 
-.PHONY: all test run clean rebuild asan
+.PHONY: all lib test run clean rebuild asan
