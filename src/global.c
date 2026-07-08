@@ -33,7 +33,19 @@ void pico_init(void) {
     g_gpu_backend = detect_gpu();
     g_pico_initialized = 1;
 
-    printf("[PICO] Pico ready.\n");
+    printf("\n\n");
+    printf("  ════════════════════════════════════════════════════════════\n");
+    printf("\n");
+    printf("  ████  ███  ███   ███    \n");
+    printf("  █░░░█  █░░█ ░░░ █ ░░█   \n");
+    printf("  ████░░ █░░█░ ░░░█░ ░█░  \n");
+    printf("  █░░░░ ░█░░█░░   █░░ █░░ \n");
+    printf("  █░░░░░███░ ███   ███ ░░ \n");
+    printf("   ░░    ░░░  ░░░   ░░░ ░ \n");
+    printf("    ░     ░░░  ░░░   ░░░  \n");
+    printf("\n");
+    printf("  ════════════════════════════════════════════════════════════\n");
+    printf("\n");
 
     x_state = (uint32_t)time(NULL);
 }
