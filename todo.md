@@ -19,14 +19,34 @@ Now make it **fast, consistent, and pleasant to use** — that's pico's whole po
 
 ## Phase 1 — Performance core (the reason pico exists)
 
-- [ ] **1. Bundle the dispatchers.** Collapse the 6 near-identical unary CPU
-      dispatchers (+ the binary ones) into one table/enum-driven path, e.g.
-      `pico_op_cpu(a, out, op)`. This is the prerequisite for clean SIMD — one place
-      per op-class to slot a vectorized variant instead of pasting into 6 switches.
+- [~] **1. Bundle the dispatchers.**
+  - [x] **Kernels deduped** (`scalar.h`): `PICO_DEFINE_BINARY_SCALAR_OP` /
+        `PICO_DEFINE_UNARY_SCALAR_OP` macros stamp out add/sub/mul + sqrt/sin/cos/
+        tan/tanh/log. 9 hand-written loops → 2 macros; new elementwise op = 1 line.
+        Binary macro takes the full EXPRESSION (flexible for future fused ops).
+        126 tests green on both sides = provably behavior-preserving.
+  - [ ] **Wrapper `switch(g_simd_level)` dedup (cpu_kernels.h) — DEFERRED on purpose.**
+        Each wrapper has only one case today; the SIMD dispatch shape isn't proven
+        yet. Don't abstract a guess — wait until the first real AVX2 kernel (#3)
+        reveals what the dispatch needs, then dedupe from knowledge. `##` name-paste
+        works but is un-greppable/magic; adding a SIMD level is a ~3-times-ever
+        change, not worth contorting readable code for. Revisit when it feels ready.
 - [ ] **2. _(reserved / TBD)_**
-- [ ] **3. First real SIMD kernel — element-wise ops.** AVX2 variant behind the
-      bundled dispatcher (start with `add` or a unary). **Measure it** vs scalar —
-      the speedup number is the deliverable (and the blog material).
+- [~] **3. First real SIMD kernel — element-wise ops.**
+  - [x] **AVX2 binary family (add/sub/mul) written + PROVEN.** One macro
+        `PICO_DEFINE_BINARY_OP_AVX2_FP32(name, simd_op, op)` stamps all three
+        (`__attribute__((target("avx2")))`, `_ps` intrinsics + scalar tail;
+        `else` = scalar map_index fallback for broadcast). All three wired via
+        `case SIMD_AVX2` (+ break). tests/kernels/test_avx2.c forces the level
+        (save/restore, cpu-supports guard) — sizes 16/19/5 across the ops. 135 green.
+  - [ ] **MEASURE it** — scalar vs AVX2 on a big same-shape add. This is the actual
+        deliverable. (Heads-up: plain add is likely memory-bandwidth-bound, so the
+        speedup may be modest — that's a real thing to learn from the number.)
+  - [ ] **Broadcast AVX2** (the `else`): stride-walk — loadu (stride 1) / splat
+        (inner stride 0) / rewind pointer (outer stride 0). The nditer/TensorIterator
+        pattern. Do after the same-shape number is measured.
+  - [ ] **3.b. First real GPU kernel — element-wise ops.** CUDA with bundle dispatcher right
+
 - [ ] **4. Loop unrolling** in the hot kernels (matmul inner loop, element-wise).
       Pair with the SIMD work; measure before/after.
 - [ ] **11. Line-by-line optimization pass** — read the hot paths deliberately

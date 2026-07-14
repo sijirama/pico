@@ -234,29 +234,76 @@ struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) 
 
 // ============================= pico_randn
 
-/*
- *dubs
- *import torch
+struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim) {
+    if(a->backend != b->backend) {
+        fprintf(
+            stderr,
+            "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
+        return NULL;
+    }
+    if(a->ndim != b->ndim) {
+        fprintf(stderr,
+                "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch found in "
+                "ndim!\n");
+        return NULL;
+    }
 
-# 1. PyTorch allocates space and generates flat uniform numbers [0, 1)
-# For a requested size of 1000, it creates two blocks of 500
-u1 = torch.rand(500)
-u2 = torch.rand(500)
+    struct Arena* arena = arena_ctx_current();
+    if(arena == NULL) {
+        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        return NULL;
+    }
 
-# 2. It applies the math to the entire tensor at once (Vectorization)
-# No loops! The computer processes these arrays in parallel rows.
-mag = torch.sqrt(-2.0 * torch.log(u1))
-angle = 2.0 * torch.pi * u2
+    int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * a->ndim);
 
-# 3. Box-Muller gives TWO normal numbers per pair using cos and sin
-z0 = mag * torch.cos(angle)
-z1 = mag * torch.sin(angle)
+    // dim=0 means stack them over each other dim=1 means side by side
+    for(int i = 0; i < a->ndim; i++) {
+        if(i == dim) {
+            res_shape[i] = a->shape[i] + b->shape[i];
+            continue;
+        }
+        if(a->shape[i] != b->shape[i]) {
+            fprintf(stderr,
+                    "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch "
+                    "found in shape!\n");
+            return NULL;
+        }
+        res_shape[i] = a->shape[i];
+    }
 
-# 4. Combine them into the final 1000-element tensor you asked for
-final_randn_tensor = torch.cat([z0, z1])
+    struct PicoTensor* out = pico_create_tensor(arena, res_shape, a->ndim);
 
- *
- * */
+    float* src_a = (float*)a->data;
+    float* src_b = (float*)b->data;
+    float* dst = (float*)out->data;
+
+    int64_t outer_count = 1;
+    for(int i = 0; i < dim; i++) {
+        outer_count *= a->shape[i];
+    }
+
+    int64_t inner_size = 1;
+    for(int i = dim + 1; i < a->ndim; i++) {
+        inner_size *= a->shape[i];
+    }
+
+    int64_t a_copy_size = a->shape[dim] * inner_size;
+    int64_t b_copy_size = b->shape[dim] * inner_size;
+
+    for(int64_t o = 0; o < outer_count; o++) {
+        // 1. Copy chunk from tensor A
+        memcpy(dst, src_a, a_copy_size * sizeof(float));
+        dst += a_copy_size;
+        src_a += a_copy_size;
+
+        // 2. Copy chunk from tensor B right next to it
+        memcpy(dst, src_b, b_copy_size * sizeof(float));
+        dst += b_copy_size;
+        src_b += b_copy_size;
+    }
+
+    return out;
+}
 
 struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim) {
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
