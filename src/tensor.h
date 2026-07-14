@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-
+#include <string.h>
+#include <stdbool.h>
 #include "arena.h"
 
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
@@ -77,6 +78,13 @@ static inline void pico_tensor_update_strides(struct PicoTensor* t) {
         t->strides[i] = current_stride;
         current_stride *= t->shape[i];
     }
+}
+
+static inline bool pico_tensor_shapes_are_equal(struct PicoTensor* a, struct PicoTensor* b) {
+    if (a->ndim != b->ndim) {
+        return false;
+    }
+    return memcmp(a->shape, b->shape, sizeof(int64_t) * a->ndim) == 0;
 }
 
 // ============================= broadcasting

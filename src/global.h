@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 typedef enum { SIMD_NONE, SIMD_SSE, SIMD_AVX, SIMD_AVX2, SIMD_AVX512 } SimdLevel;
-typedef enum { GPU_UNKNOWN, GPU_OPENCL } GpuBackend;
+typedef enum { GPU_UNKNOWN, GPU_OPENCL, GPU_CUDA } GpuBackend;
 
 extern SimdLevel g_simd_level;
 extern GpuBackend g_gpu_backend;

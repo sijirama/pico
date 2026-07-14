@@ -1,7 +1,8 @@
 #pragma once
 
 #include "global.h"
-#include "kernels/cpu/scalar.h"
+#include "kernels/cpu/cpu_avx_2.h"
+#include "kernels/cpu/cpu_scalar.h"
 #include "tensor.h"
 
 // CPU dispatch: pick the kernel variant for the detected SIMD level.
@@ -11,6 +12,9 @@
 static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b,
                                 struct PicoTensor* out) {
     switch(g_simd_level) {
+        case SIMD_AVX2:
+            pico_add_cpu_avx2_fp32(a, b, out);
+            break;
         default:
             pico_add_cpu_scalar(a, b, out);
     }
@@ -19,6 +23,9 @@ static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b,
 static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b,
                                 struct PicoTensor* out) {
     switch(g_simd_level) {
+        case SIMD_AVX2:
+            pico_sub_cpu_avx2_fp32(a, b, out);
+            break;
         default:
             pico_sub_cpu_scalar(a, b, out);
     }
@@ -27,6 +34,9 @@ static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b,
 static inline void pico_mul_cpu(struct PicoTensor* a, struct PicoTensor* b,
                                 struct PicoTensor* out) {
     switch(g_simd_level) {
+        case SIMD_AVX2:
+            pico_mul_cpu_avx2_fp32(a, b, out);
+            break;
         default:
             pico_mul_cpu_scalar(a, b, out);
     }

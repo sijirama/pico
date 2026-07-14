@@ -20,7 +20,7 @@ static SimdLevel detect_simd(void) {
 }
 
 static GpuBackend detect_gpu(void) {
-    return GPU_OPENCL;
+    return GPU_CUDA;
 }
 
 void pico_init(void) {
