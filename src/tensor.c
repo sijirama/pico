@@ -187,6 +187,46 @@ struct PicoTensor* pico_tensor_from_scalar(float value) {
     return tensor;
 }
 
+// recursive helper: walk one dim, indent nested brackets, use strides so a
+// non-contiguous / broadcasted view still prints in logical shape order.
+static void pico_print_recursive(struct PicoTensor* t, int dim, int64_t offset) {
+    if(dim == t->ndim - 1) {  // innermost axis -> print the row
+        printf("[");
+        for(int64_t i = 0; i < t->shape[dim]; i++) {
+            printf("%g", t->data[offset + i * t->strides[dim]]);
+            if(i != t->shape[dim] - 1) printf(", ");
+        }
+        printf("]");
+        return;
+    }
+    printf("[");
+    for(int64_t i = 0; i < t->shape[dim]; i++) {
+        pico_print_recursive(t, dim + 1, offset + i * t->strides[dim]);
+        if(i != t->shape[dim] - 1) printf(",\n ");
+    }
+    printf("]");
+}
+
+void pico_tensor_print(struct PicoTensor* t) {
+    if(t == NULL) {
+        printf("PicoTensor(NULL)\n");
+        return;
+    }
+    printf("PicoTensor(shape=[");
+    for(int i = 0; i < t->ndim; i++) {
+        printf("%ld", (long)t->shape[i]);
+        if(i != t->ndim - 1) printf(", ");
+    }
+    printf("], numel=%ld)\n", (long)t->numel);
+
+    if(t->ndim == 0 || t->data == NULL) {
+        printf("(no data)\n");
+        return;
+    }
+    pico_print_recursive(t, 0, 0);
+    printf("\n");
+}
+
 void pico_transpose_2d(struct PicoTensor* tensor) {
     if(tensor->ndim != 2) {
         fprintf(stderr, "Error: This is not a rank 2 tensor!\n");

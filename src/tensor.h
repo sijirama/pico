@@ -34,6 +34,9 @@ struct PicoTensor* pico_tensor_from_scalar(float value);
 
 void pico_free(struct PicoTensor* tensor);
 
+// pretty-print a tensor's shape + data, nested by shape (respects strides).
+void pico_tensor_print(struct PicoTensor* t);
+
 // ====================================== important ops
 // TODO: siji don't forget about these guys
 

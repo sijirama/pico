@@ -1,6 +1,7 @@
 #pragma once
 
 #include "global.h"
+#include "kernels/cpu/cpu_avx.h"
 #include "kernels/cpu/cpu_avx_2.h"
 #include "kernels/cpu/cpu_scalar.h"
 #include "tensor.h"
@@ -45,6 +46,9 @@ static inline void pico_mul_cpu(struct PicoTensor* a, struct PicoTensor* b,
 static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b,
                                    struct PicoTensor* out) {
     switch(g_simd_level) {
+        case SIMD_AVX:
+            pico_matmul_cpu_avx(a, b, out);
+            break;
         default:
             pico_matmul_cpu_scalar(a, b, out);
     }
