@@ -37,5 +37,5 @@ $(BIN):
 	@mkdir -p $(BIN)
 
 clean:
-	@echo "cleaning bench binaries..."
-	@rm -rf $(BIN)
+	@echo "cleaning bench binaries + assembly dumps..."
+	@rm -rf $(BIN) *.s
