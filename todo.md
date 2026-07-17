@@ -39,9 +39,12 @@ Now make it **fast, consistent, and pleasant to use** — that's pico's whole po
         `else` = scalar map_index fallback for broadcast). All three wired via
         `case SIMD_AVX2` (+ break). tests/kernels/test_avx2.c forces the level
         (save/restore, cpu-supports guard) — sizes 16/19/5 across the ops. 135 green.
-  - [ ] **MEASURE it** — scalar vs AVX2 on a big same-shape add. This is the actual
-        deliverable. (Heads-up: plain add is likely memory-bandwidth-bound, so the
-        speedup may be modest — that's a real thing to learn from the number.)
+  - [x] **`bench/` pillar stood up** (`make bench`, -O2, correctness gate + GFLOP/s).
+        First number: matmul scalar 2.46 GFLOP/s vs AVX 7.69 = **3.12x**, bit-exact.
+        (3x not 8x: -O2 auto-vec's the scalar baseline to SSE + cache effects — the
+        honest hand-AVX-vs-optimized-scalar number.) bench/bench_matmul.c.
+  - [ ] **Bench the elementwise add** too (scalar vs AVX2) — expect it memory-BW-bound
+        (modest speedup), the instructive contrast to compute-bound matmul.
   - [ ] **Broadcast AVX2** (the `else`): stride-walk — loadu (stride 1) / splat
         (inner stride 0) / rewind pointer (outer stride 0). The nditer/TensorIterator
         pattern. Do after the same-shape number is measured.

@@ -81,6 +81,9 @@ asan:
 	@echo "Running tests under ASan..."
 	@./$(ASAN_TARGET)
 
+# NOTE: benchmarks live in bench/ and are their OWN self-contained env — run them
+# from inside bench/ (`cd bench && make <name>`), never from the repo root.
+
 clean:
 	@echo "Cleaning..."
 	@rm -rf $(OBJ_DIR) $(LIB_DIR) $(TARGET) $(TEST_TARGET) $(ASAN_TARGET) a.out

@@ -86,6 +86,236 @@ UTEST(avx_matmul, nonsquare_2x3_3x2) {
     ASSERT_TRUE(o3 == 154.0f);
 }
 
+// Exact 2x8 output:
+// - no leftover rows
+// - no leftover columns
+// - should exercise only the 2x8 microkernel
+UTEST(avx_matmul, exact_2x3_3x8) {
+    if(!__builtin_cpu_supports("avx"))
+        return;
+
+    SimdLevel saved = g_simd_level;
+    pico_init();
+    g_simd_level = SIMD_AVX;
+
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 3};
+    int64_t sb[] = {3, 8};
+
+    struct PicoTensor* a = pico_param(sa, 2);
+    struct PicoTensor* b = pico_param(sb, 2);
+
+    float av[] = {
+        1, 2, 3, 4, 5, 6,
+    };
+
+    float bv[] = {
+        1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28,
+    };
+
+    for(int i = 0; i < 6; i++)
+        a->data[i] = av[i];
+
+    for(int i = 0; i < 24; i++)
+        b->data[i] = bv[i];
+
+    struct PicoTensor* out = pico_matmul(a, b);
+    pico_tensor_print(out);
+
+    float expected[] = {
+        86, 92, 98, 104, 110, 116, 122, 128, 185, 200, 215, 230, 245, 260, 275, 290,
+    };
+
+    float got[16];
+    for(int i = 0; i < 16; i++)
+        got[i] = out->data[i];  // capture before teardown
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+    g_simd_level = saved;  // restore no matter what the asserts do
+
+    for(int i = 0; i < 16; i++)
+        ASSERT_TRUE(got[i] == expected[i]);
+}
+
+// Exact 3x8 output:
+// - first two rows use 2x8
+// - final row uses 1x8
+// - no column remainder
+UTEST(avx_matmul, row_tail_3x3_3x8) {
+    if(!__builtin_cpu_supports("avx"))
+        return;
+
+    SimdLevel saved = g_simd_level;
+    pico_init();
+    g_simd_level = SIMD_AVX;
+
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {3, 3};
+    int64_t sb[] = {3, 8};
+
+    struct PicoTensor* a = pico_param(sa, 2);
+    struct PicoTensor* b = pico_param(sb, 2);
+
+    float av[] = {
+        1, 2, 3, 4, 5, 6, 7, 8, 9,
+    };
+
+    float bv[] = {
+        1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28,
+    };
+
+    for(int i = 0; i < 9; i++)
+        a->data[i] = av[i];
+
+    for(int i = 0; i < 24; i++)
+        b->data[i] = bv[i];
+
+    struct PicoTensor* out = pico_matmul(a, b);
+    pico_tensor_print(out);
+
+    float expected[] = {
+        86,  92,  98,  104, 110, 116, 122, 128, 185, 200, 215, 230,
+        245, 260, 275, 290, 284, 308, 332, 356, 380, 404, 428, 452,
+    };
+
+    float got[24];
+    for(int i = 0; i < 24; i++)
+        got[i] = out->data[i];  // capture before teardown
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+    g_simd_level = saved;  // restore no matter what the asserts do
+
+    for(int i = 0; i < 24; i++)
+        ASSERT_TRUE(got[i] == expected[i]);
+}
+
+// 2x10 output:
+// - columns 0..7 use 2x8
+// - columns 8..9 are the scalar j tail
+// - no leftover row
+UTEST(avx_matmul, column_tail_2x3_3x10) {
+    if(!__builtin_cpu_supports("avx"))
+        return;
+
+    SimdLevel saved = g_simd_level;
+    pico_init();
+    g_simd_level = SIMD_AVX;
+
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {2, 3};
+    int64_t sb[] = {3, 10};
+
+    struct PicoTensor* a = pico_param(sa, 2);
+    struct PicoTensor* b = pico_param(sb, 2);
+
+    float av[] = {
+        1, 2, 3, 4, 5, 6,
+    };
+
+    float bv[] = {
+        1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    };
+
+    for(int i = 0; i < 6; i++)
+        a->data[i] = av[i];
+
+    for(int i = 0; i < 30; i++)
+        b->data[i] = bv[i];
+
+    struct PicoTensor* out = pico_matmul(a, b);
+    pico_tensor_print(out);
+
+    float expected[] = {
+        86,  92,  98,  104, 110, 116, 122, 128, 134, 140,
+        185, 200, 215, 230, 245, 260, 275, 290, 305, 320,
+    };
+
+    float got[20];
+    for(int i = 0; i < 20; i++)
+        got[i] = out->data[i];  // capture before teardown
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+    g_simd_level = saved;  // restore no matter what the asserts do
+
+    for(int i = 0; i < 20; i++)
+        ASSERT_TRUE(got[i] == expected[i]);
+}
+
+// 3x10 output:
+//
+// rows 0..1, cols 0..7 → 2x8
+// rows 0..1, cols 8..9 → scalar right edge
+// row 2, cols 0..7     → 1x8
+// row 2, cols 8..9     → scalar bottom-right
+UTEST(avx_matmul, all_edges_3x3_3x10) {
+    if(!__builtin_cpu_supports("avx"))
+        return;
+
+    SimdLevel saved = g_simd_level;
+    pico_init();
+    g_simd_level = SIMD_AVX;
+
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t sa[] = {3, 3};
+    int64_t sb[] = {3, 10};
+
+    struct PicoTensor* a = pico_param(sa, 2);
+    struct PicoTensor* b = pico_param(sb, 2);
+
+    float av[] = {
+        1, 2, 3, 4, 5, 6, 7, 8, 9,
+    };
+
+    float bv[] = {
+        1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    };
+
+    for(int i = 0; i < 9; i++)
+        a->data[i] = av[i];
+
+    for(int i = 0; i < 30; i++)
+        b->data[i] = bv[i];
+
+    struct PicoTensor* out = pico_matmul(a, b);
+
+    float expected[] = {
+        86,  92,  98,  104, 110, 116, 122, 128, 134, 140, 185, 200, 215, 230, 245,
+        260, 275, 290, 305, 320, 284, 308, 332, 356, 380, 404, 428, 452, 476, 500,
+    };
+
+    float got[30];
+    for(int i = 0; i < 30; i++)
+        got[i] = out->data[i];  // capture before teardown
+
+    pico_free(a);
+    pico_free(b);
+    arena_ctx_pop();
+    arena_destroy(ar);
+    g_simd_level = saved;  // restore no matter what the asserts do
+
+    for(int i = 0; i < 30; i++)
+        ASSERT_TRUE(got[i] == expected[i]);
+}
+
 // identity: A @ I == A (sanity edge)
 UTEST(avx_matmul, times_identity) {
     if(!__builtin_cpu_supports("avx"))
@@ -109,6 +339,7 @@ UTEST(avx_matmul, times_identity) {
     b->data[3] = 1;
 
     struct PicoTensor* out = pico_matmul(a, b);
+    pico_tensor_print(out);
     float o0 = out->data[0], o1 = out->data[1], o2 = out->data[2], o3 = out->data[3];
 
     pico_free(a);
