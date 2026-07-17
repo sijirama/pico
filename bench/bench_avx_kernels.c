@@ -34,7 +34,8 @@ int main(void) {
     struct strat strats[] = {
         {"scalar", pico_matmul_cpu_scalar}, {"1x8", bench_matmul_roll1},
         {"2x8", bench_matmul_roll2},        {"4x8", bench_matmul_roll4},
-        {"8x8", bench_matmul_roll8},        {"adaptive", pico_matmul_cpu_avx},
+        {"8x8", bench_matmul_roll8},        {"14x8", bench_matmul_roll14},
+        {"adaptive", pico_matmul_cpu_avx},
     };
     int n_strats = (int)(sizeof(strats) / sizeof(strats[0]));
 
