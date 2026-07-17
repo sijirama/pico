@@ -86,7 +86,8 @@ int main(void) {
     double g_scalar = flops / t_scalar / 1e9;
     double g_avx = flops / t_avx / 1e9;
 
-    printf("\n  pico matmul benchmark   (N=%d, iters=%d, -O2)\n", N, ITERS);
+    printf("\n  pico matmul benchmark   (iters=%d, -O2)\n", ITERS);
+    printf("  shape:  %dx%d * %dx%d = %dx%d\n", N, N, N, N, N, N);
     printf("  ---------------------------------------------\n");
     printf("  correctness: max|avx - scalar| = %.3e  [%s]\n\n", max_diff,
            correct ? "OK" : "MISMATCH -- numbers below are meaningless");

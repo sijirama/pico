@@ -71,7 +71,8 @@ int main(void) {
 
         double flops = 2.0 * (double)M * (double)K * (double)N;
 
-        printf("\n  %s   (out %dx%d)\n", shapes[s].name, M, N);
+        printf("\n  %s\n", shapes[s].name);
+        printf("  %dx%d * %dx%d = %dx%d\n", M, K, K, N, M, N);
         printf("  %-10s %12s %12s   %s\n", "strategy", "ms/matmul", "GFLOP/s", "correct");
         printf("  ------------------------------------------------------\n");
 
