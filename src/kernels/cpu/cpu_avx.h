@@ -69,38 +69,54 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
     int k_dim = a->shape[1];
 
     int i = 0;
+    int roll = 8;
 
-    for(; i + 8 <= rows; i += 8) {
+    roll = 14;
+    for(; i + roll <= rows; i += roll) {
+        int j = 0;
+        for(; j + 8 <= columns; j += 8) {
+            pico_matmul_cpu_avx_kernel_14_8(a, b, out, k_dim, i, j);
+        }
+        for(; j < columns; j++) {
+            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
+        }
+    }
+
+    roll = 8;
+    for(; i + roll <= rows; i += roll) {
         int j = 0;
         for(; j + 8 <= columns; j += 8) {
             pico_matmul_cpu_avx_kernel_8_8(a, b, out, k_dim, i, j);
         }
         for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, 8);
+            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
         }
     }
 
-    for(; i + 4 <= rows; i += 4) {
+    roll = 4;
+    for(; i + roll <= rows; i += roll) {
         int j = 0;
         for(; j + 8 <= columns; j += 8) {
             pico_matmul_cpu_avx_kernel_4_8(a, b, out, k_dim, i, j);
         }
         for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, 4);
+            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
         }
     }
 
-    for(; i + 2 <= rows; i += 2) {
+    roll = 2;
+    for(; i + roll <= rows; i += roll) {
         int j = 0;
         for(; j + 8 <= columns; j += 8) {
             pico_matmul_cpu_avx_kernel_2_8(a, b, out, k_dim, i, j);
         }
         for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, 2);
+            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
         }
     }
 
-    for(; i + 1 <= rows; i += 1) {
+    roll = 1;
+    for(; i + roll <= rows; i += roll) {
         int j = 0;
         for(; j + 8 <= columns; j += 8) {
             pico_matmul_cpu_avx_kernel_1_8(a, b, out, k_dim, i, j);
