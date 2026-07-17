@@ -40,8 +40,8 @@ static inline void bench_scalar_cell(struct PicoTensor* a, struct PicoTensor* b,
 // stamp a full-matmul driver that uses ONLY the R-row microkernel for R x 8 tiles,
 // scalar for the right strip (R rows x tail cols) and bottom strip (tail rows).
 #define BENCH_DEFINE_ROLL_DRIVER(R)                                                    \
-    static inline void bench_matmul_roll##R(struct PicoTensor* a, struct PicoTensor* b, \
-                                            struct PicoTensor* out) {                   \
+    __attribute__((target("avx2,fma"))) static inline void bench_matmul_roll##R(       \
+        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {           \
         int rows = a->shape[0];                                                        \
         int cols = b->shape[1];                                                        \
         int k_dim = a->shape[1];                                                       \
