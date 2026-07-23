@@ -59,6 +59,7 @@ struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim)
 // ============================= helpers
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 static inline int pico_compute_numel(int64_t* shape, int ndim) {
     int numel = 1;
