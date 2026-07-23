@@ -60,7 +60,9 @@ static inline void pico_matmul_cpu_avx_kernel_scalar_1x8(struct PicoTensor* a, s
             _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                               \
                 m_vecs[r] = _mm256_set1_ps(a->data[(i + r) * a->strides[0] + k * a->strides[1]]);  \
             }                                                                                      \
+                                                                                                   \
             __m256 n_vec = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1]]);       \
+                                                                                                   \
             _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                               \
                 acc[r] = _mm256_fmadd_ps(m_vecs[r], n_vec, acc[r]);                                \
             }                                                                                      \
