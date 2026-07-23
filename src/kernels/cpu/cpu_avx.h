@@ -3,7 +3,9 @@
 #include <pthread.h>
 #include <stdbool.h>
 
+#include "global.h"
 #include "tensor.h"
+#include "tpool.h"
 
 #ifndef MATMUL_THREAD_MAX
 #define MATMUL_THREAD_MAX 8
@@ -136,13 +138,12 @@ struct ThreadArgs {
     int k_dim;
 };
 
-__attribute__((target("avx2,fma"), always_inline)) static inline void*
+__attribute__((target("avx2,fma"), always_inline)) static inline void
 pico_matmul_cpu_avx_thread_entry(void* arg) {
     struct ThreadArgs* thread_args = (struct ThreadArgs*)arg;
     pico_matmul_cpu_avx_exec(thread_args->a, thread_args->b, thread_args->out,
                              thread_args->row_start, thread_args->row_end, thread_args->columns,
                              thread_args->k_dim);
-    return NULL;
 }
 
 __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struct PicoTensor* a,
@@ -163,10 +164,8 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
     // take the min btw our max threads and the allocatable
     // threads from the rows to avoid threads with no work
     // initialize the threads array with the proper count
-    pthread_t* threads;
     int row_chunks = (rows + MATMUL_THREAD_ROW_MAX - 1) / MATMUL_THREAD_ROW_MAX;
     int thread_count = MIN(MATMUL_THREAD_MAX, row_chunks);
-    threads = (pthread_t*)malloc(thread_count * sizeof(pthread_t));
     struct ThreadArgs* args = (struct ThreadArgs*)malloc(thread_count * sizeof(struct ThreadArgs));
 
     int rows_per_thread = rows / thread_count;
@@ -193,15 +192,12 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
         args[thread].columns = columns;
         args[thread].k_dim = k_dim;
 
-        pthread_create(&threads[thread], NULL, pico_matmul_cpu_avx_thread_entry, &args[thread]);
+        pico_tpool_add_work(global_tp, pico_matmul_cpu_avx_thread_entry, &args[thread]);
 
         current_row = end_row;
     }
 
-    for(int thread = 0; thread < thread_count; thread++) {
-        pthread_join(threads[thread], NULL);
-    }
+    pico_tpool_wait(global_tp);
 
     free(args);
-    free(threads);
 }
