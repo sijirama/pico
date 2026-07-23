@@ -6,6 +6,7 @@
 #include "tensor.h"
 
 #define MATMUL_THREAD_MAX 8
+#define MATMUL_THREAD_MIN_ROWS 256
 #define MATMUL_THREAD_ROW_MAX 64
 
 static inline void pico_matmul_cpu_avx_kernel_scalar_Xx8(struct PicoTensor* a, struct PicoTensor* b,
@@ -146,7 +147,7 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
     int columns = b->shape[1];
     int rows = a->shape[0];
 
-    if(rows < 64) {  // INFO: k_dim is too small to worry about this
+    if(rows < MATMUL_THREAD_MIN_ROWS) {
         int i = 0;
         pico_matmul_cpu_avx_exec(a, b, out, i, rows, columns, k_dim);
         return;
