@@ -65,60 +65,60 @@ PICO_DEFINE_MATMUL_CPU_AVX_MKERNEL_X(4);
 PICO_DEFINE_MATMUL_CPU_AVX_MKERNEL_X(2);
 PICO_DEFINE_MATMUL_CPU_AVX_MKERNEL_X(1);
 
-__attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx_exec(
-    struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int row_start, int row_end,
-    int columns, int k_dim) {
-    //
-    //
-    //
-    //
-    int i = row_start;
-    int rows = row_end;
-    int roll = 8;
-
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_8_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
+#define PICO_MATMUL_CPU_AVX_EXEC(a_arg, b_arg, out_arg, row_start_arg, row_end_arg, columns_arg, \
+                                 k_dim_arg)                                                      \
+    {                                                                                            \
+        int mm_i = (row_start_arg);                                                              \
+        int mm_rows = (row_end_arg);                                                             \
+        int mm_roll = 8;                                                                         \
+        for(; mm_i + mm_roll <= mm_rows; mm_i += mm_roll) {                                      \
+            int mm_j = 0;                                                                        \
+            for(; mm_j + 8 <= (columns_arg); mm_j += 8) {                                        \
+                pico_matmul_cpu_avx_kernel_8_8((a_arg), (b_arg), (out_arg), (k_dim_arg), mm_i,   \
+                                               mm_j);                                            \
+            }                                                                                    \
+            for(; mm_j < (columns_arg); mm_j++) {                                                \
+                pico_matmul_cpu_avx_kernel_scalar_Xx8((a_arg), (b_arg), (out_arg), (k_dim_arg),  \
+                                                      mm_i, mm_j, mm_roll);                      \
+            }                                                                                    \
+        }                                                                                        \
+        mm_roll = 4;                                                                             \
+        for(; mm_i + mm_roll <= mm_rows; mm_i += mm_roll) {                                      \
+            int mm_j = 0;                                                                        \
+            for(; mm_j + 8 <= (columns_arg); mm_j += 8) {                                        \
+                pico_matmul_cpu_avx_kernel_4_8((a_arg), (b_arg), (out_arg), (k_dim_arg), mm_i,   \
+                                               mm_j);                                            \
+            }                                                                                    \
+            for(; mm_j < (columns_arg); mm_j++) {                                                \
+                pico_matmul_cpu_avx_kernel_scalar_Xx8((a_arg), (b_arg), (out_arg), (k_dim_arg),  \
+                                                      mm_i, mm_j, mm_roll);                      \
+            }                                                                                    \
+        }                                                                                        \
+        mm_roll = 2;                                                                             \
+        for(; mm_i + mm_roll <= mm_rows; mm_i += mm_roll) {                                      \
+            int mm_j = 0;                                                                        \
+            for(; mm_j + 8 <= (columns_arg); mm_j += 8) {                                        \
+                pico_matmul_cpu_avx_kernel_2_8((a_arg), (b_arg), (out_arg), (k_dim_arg), mm_i,   \
+                                               mm_j);                                            \
+            }                                                                                    \
+            for(; mm_j < (columns_arg); mm_j++) {                                                \
+                pico_matmul_cpu_avx_kernel_scalar_Xx8((a_arg), (b_arg), (out_arg), (k_dim_arg),  \
+                                                      mm_i, mm_j, mm_roll);                      \
+            }                                                                                    \
+        }                                                                                        \
+        mm_roll = 1;                                                                             \
+        for(; mm_i + mm_roll <= mm_rows; mm_i += mm_roll) {                                      \
+            int mm_j = 0;                                                                        \
+            for(; mm_j + 8 <= (columns_arg); mm_j += 8) {                                        \
+                pico_matmul_cpu_avx_kernel_1_8((a_arg), (b_arg), (out_arg), (k_dim_arg), mm_i,   \
+                                               mm_j);                                            \
+            }                                                                                    \
+            for(; mm_j < (columns_arg); mm_j++) {                                                \
+                pico_matmul_cpu_avx_kernel_scalar_1x8((a_arg), (b_arg), (out_arg), (k_dim_arg),  \
+                                                      mm_i, mm_j);                               \
+            }                                                                                    \
+        }                                                                                        \
     }
-
-    roll = 4;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_4_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 2;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_2_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 1;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_1_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_1x8(a, b, out, k_dim, i, j);
-        }
-    }
-}
 
 struct ThreadArgs {
     struct PicoTensor* a;
@@ -132,9 +132,10 @@ struct ThreadArgs {
     int k_dim;
 };
 
-__attribute__((target("avx2,fma"))) static inline void* pico_matmul_cpu_avx_thread_entry(void* arg) {
+__attribute__((target("avx2,fma"), always_inline)) static inline void*
+pico_matmul_cpu_avx_thread_entry(void* arg) {
     struct ThreadArgs* thread_args = (struct ThreadArgs*)arg;
-    pico_matmul_cpu_avx_exec(thread_args->a, thread_args->b, thread_args->out,
+    PICO_MATMUL_CPU_AVX_EXEC(thread_args->a, thread_args->b, thread_args->out,
                              thread_args->row_start, thread_args->row_end, thread_args->columns,
                              thread_args->k_dim);
     return NULL;
@@ -149,13 +150,11 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
 
     if(rows < MATMUL_THREAD_MIN_ROWS) {
         int i = 0;
-        pico_matmul_cpu_avx_exec(a, b, out, i, rows, columns, k_dim);
+        PICO_MATMUL_CPU_AVX_EXEC(a, b, out, i, rows, columns, k_dim);
         return;
     }
 
     // INFO: multithreaded matmul
-    //
-    //
 
     // take the min btw our max threads and the allocatable
     // threads from the rows to avoid threads with no work
