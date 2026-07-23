@@ -6,7 +6,7 @@
 #include "tensor.h"
 
 #define MATMUL_THREAD_MAX 8
-#define MATMUL_THREAD_MIN_ROWS 256
+#define MATMUL_THREAD_MIN_ROWS 512
 #define MATMUL_THREAD_ROW_MAX 64
 
 static inline void pico_matmul_cpu_avx_kernel_scalar_Xx8(struct PicoTensor* a, struct PicoTensor* b,
