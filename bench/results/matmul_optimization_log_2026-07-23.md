@@ -141,3 +141,36 @@ replace create/join per matmul with a thread pool
 benchmark thread counts 2/4/8
 consider total-work threshold: rows * columns * k_dim
 ```
+
+## Thread Count Sweep
+
+After making `MATMUL_THREAD_MAX` compiler-overridable, we swept thread caps with:
+
+```sh
+cd bench
+make thread_scaling CFLAGS='-std=c11 -O2 -I ../src -Wall -pthread -DMATMUL_THREAD_MAX=N'
+```
+
+`MATMUL_THREAD_MIN_ROWS` stayed at `512`, so `128` and `256` are single-threaded regardless of thread cap. The meaningful comparison is `512+`.
+
+```text
+Thread cap    N=512 ms   N=512 GF/s   N=1024 ms   N=1024 GF/s
+1               6.724       39.92       46.644        46.04
+2               3.290       81.59       37.777        56.85
+4               1.758      152.67       22.036        97.45
+8               1.077      249.20       16.251       132.14
+16              1.272      211.01       19.569       109.74
+```
+
+Takeaway:
+
+```text
+8 threads won for both 512 and 1024 in this sweep.
+16 threads regressed, likely from scheduling overhead, SMT contention, or memory/cache pressure.
+```
+
+Current default remains:
+
+```c
+#define MATMUL_THREAD_MAX 8
+```
