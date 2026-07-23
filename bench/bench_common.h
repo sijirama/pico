@@ -63,7 +63,6 @@ BENCH_DEFINE_ROLL_DRIVER(1)
 BENCH_DEFINE_ROLL_DRIVER(2)
 BENCH_DEFINE_ROLL_DRIVER(4)
 BENCH_DEFINE_ROLL_DRIVER(8)
-BENCH_DEFINE_ROLL_DRIVER(14)
 
 // signature shared by every matmul strategy (scalar, roll drivers, adaptive avx)
 typedef void (*bench_matmul_fn)(struct PicoTensor*, struct PicoTensor*, struct PicoTensor*);

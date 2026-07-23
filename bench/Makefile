@@ -21,8 +21,9 @@ SRCS = $(filter-out $(SRC_DIR)/main.c, $(shell find $(SRC_DIR) -name '*.c'))
 
 # one target per bench_<name>.c   ->   `make <name>`
 BENCHES = $(patsubst bench_%.c,%,$(wildcard bench_*.c))
+BENCHES := $(filter-out blas_compare,$(BENCHES))
 
-.PHONY: all clean $(BENCHES)
+.PHONY: all clean $(BENCHES) blas_openblas blas_blis
 
 all: $(BENCHES)
 
@@ -30,6 +31,18 @@ all: $(BENCHES)
 $(BENCHES): %: bench_%.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2)"
 	@$(CC) $(CFLAGS) $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS)
+	@echo ">> running  $@"
+	@./$(BIN)/$@
+
+blas_openblas: bench_blas_compare.c $(SRCS) | $(BIN)
+	@echo ">> building $@  (-O2, OpenBLAS)"
+	@$(CC) $(CFLAGS) -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lopenblas
+	@echo ">> running  $@"
+	@./$(BIN)/$@
+
+blas_blis: bench_blas_compare.c $(SRCS) | $(BIN)
+	@echo ">> building $@  (-O2, BLIS)"
+	@$(CC) $(CFLAGS) -DBLAS_NAME=\"BLIS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lblis
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
