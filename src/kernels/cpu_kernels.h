@@ -1,17 +1,16 @@
 #pragma once
 
 #include "global.h"
-#include "kernels/cpu/cpu_avx.h"
 #include "kernels/cpu/cpu_avx_2.h"
 #include "kernels/cpu/cpu_scalar.h"
+#include "kernels/matmul/cpu.h"
 #include "tensor.h"
 
 // CPU dispatch: pick the kernel variant for the detected SIMD level.
 // g_simd_level is set once by pico_init(); default falls back to scalar so an
 // unknown/unsupported level still computes correctly (just slower).
 
-static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b,
-                                struct PicoTensor* out) {
+static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     switch(g_simd_level) {
         case SIMD_AVX2:
             pico_add_cpu_avx2_fp32(a, b, out);
@@ -21,8 +20,7 @@ static inline void pico_add_cpu(struct PicoTensor* a, struct PicoTensor* b,
     }
 }
 
-static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b,
-                                struct PicoTensor* out) {
+static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     switch(g_simd_level) {
         case SIMD_AVX2:
             pico_sub_cpu_avx2_fp32(a, b, out);
@@ -32,25 +30,13 @@ static inline void pico_sub_cpu(struct PicoTensor* a, struct PicoTensor* b,
     }
 }
 
-static inline void pico_mul_cpu(struct PicoTensor* a, struct PicoTensor* b,
-                                struct PicoTensor* out) {
+static inline void pico_mul_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     switch(g_simd_level) {
         case SIMD_AVX2:
             pico_mul_cpu_avx2_fp32(a, b, out);
             break;
         default:
             pico_mul_cpu_scalar(a, b, out);
-    }
-}
-
-static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b,
-                                   struct PicoTensor* out) {
-    switch(g_simd_level) {
-        case SIMD_AVX:
-            pico_matmul_cpu_avx(a, b, out);
-            break;
-        default:
-            pico_matmul_cpu_scalar(a, b, out);
     }
 }
 
