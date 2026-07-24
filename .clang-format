@@ -8,6 +8,6 @@ AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 BreakBeforeBraces: Attach
-ColumnLimit: 100
+ColumnLimit: 120
 IndentCaseLabels: true
 SpaceBeforeParens: Never
