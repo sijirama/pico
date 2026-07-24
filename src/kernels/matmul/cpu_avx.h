@@ -5,8 +5,8 @@
 #include <stdbool.h>
 
 #include "global.h"
-#include "kernels/matmul/avx2_6x16.h"
-#include "kernels/matmul/avx2_8x8.h"
+#include "kernels/matmul/avx2_16x_exec.h"
+#include "kernels/matmul/avx2_8x8_exec.h"
 #include "tensor.h"
 #include "tpool.h"
 
@@ -25,67 +25,7 @@
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_exec(
     struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int row_start, int row_end, int columns,
     int k_dim) {
-    int i = row_start;
-    int rows = row_end;
-    int roll = 0;
-
-    roll = 6;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 16 <= columns; j += 16) {
-            pico_matmul_cpu_avx_kernel_6_16(a, b, out, k_dim, i, j);
-        }
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_6_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 8;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_8_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 4;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_4_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 2;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_2_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_Xx8(a, b, out, k_dim, i, j, roll);
-        }
-    }
-
-    roll = 1;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_1_8(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx_kernel_scalar_1x8(a, b, out, k_dim, i, j);
-        }
-    }
+    pico_matmul_cpu_avx_16x_exec(a, b, out, row_start, row_end, columns, k_dim);
 }
 
 struct ThreadArgs {
@@ -113,7 +53,7 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(struc
     int rows = a->shape[0];
 
     int i = 0;
-    pico_matmul_cpu_avx_exec(a, b, out, i, rows, columns, k_dim);
+    pico_matmul_cpu_avx_16x_exec(a, b, out, i, rows, columns, k_dim);
     return;
 
     // NOTE: stop multi threading for a bit to check something, when opening this back we're gonna

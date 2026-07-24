@@ -32,9 +32,10 @@ int main(void) {
     pico_init();
 
     struct strat strats[] = {
-        {"scalar", pico_matmul_cpu_scalar}, {"1x8", bench_matmul_roll1},
-        {"2x8", bench_matmul_roll2},        {"4x8", bench_matmul_roll4},
-        {"8x8", bench_matmul_roll8},        {"adaptive", pico_matmul_cpu_avx},
+        {"scalar", pico_matmul_cpu_scalar},       {"1x8", bench_matmul_roll1},
+        {"2x8", bench_matmul_roll2},              {"4x8", bench_matmul_roll4},
+        {"8x8", bench_matmul_roll8},              {"8x8-family", pico_matmul_cpu_avx_8x8},
+        {"16x-family", pico_matmul_cpu_avx_16x},  {"adaptive", pico_matmul_cpu_avx},
     };
     int n_strats = (int)(sizeof(strats) / sizeof(strats[0]));
 
