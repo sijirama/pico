@@ -12,8 +12,8 @@
 
 CC       = gcc
 SRC_DIR  = ../src
-CFLAGS   = -std=c11 -O2 -I $(SRC_DIR) -Wall -pthread
-LDFLAGS  = -lm -pthread
+CFLAGS   = -std=c11 -O2 -I $(SRC_DIR) -Wall -pthread -fopenmp
+LDFLAGS  = -lm -pthread -fopenmp
 BIN      = bin
 
 # pico library sources (everything except the app entrypoint)
@@ -23,7 +23,7 @@ SRCS = $(filter-out $(SRC_DIR)/main.c, $(shell find $(SRC_DIR) -name '*.c'))
 BENCHES = $(patsubst bench_%.c,%,$(wildcard bench_*.c))
 BENCHES := $(filter-out blas_compare,$(BENCHES))
 
-.PHONY: all clean $(BENCHES) blas_openblas blas_blis
+.PHONY: all clean $(BENCHES) blas_openblas blas_blis matmul_focused_openblas
 
 all: $(BENCHES)
 
@@ -43,6 +43,12 @@ blas_openblas: bench_blas_compare.c $(SRCS) | $(BIN)
 blas_blis: bench_blas_compare.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2, BLIS)"
 	@$(CC) $(CFLAGS) -DBLAS_NAME=\"BLIS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lblis
+	@echo ">> running  $@"
+	@./$(BIN)/$@
+
+matmul_focused_openblas: bench_matmul_focused.c $(SRCS) | $(BIN)
+	@echo ">> building $@  (-O2, OpenBLAS)"
+	@$(CC) $(CFLAGS) -DUSE_CBLAS -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lopenblas
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 

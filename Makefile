@@ -1,7 +1,7 @@
 CC = gcc
 AR = ar
-CFLAGS = -std=c11 -I src -g -Wall -pthread
-LDFLAGS = -lm -pthread
+CFLAGS = -std=c11 -I src -g -Wall -pthread -fopenmp
+LDFLAGS = -lm -pthread -fopenmp
 
 SRC_DIR = src
 INC_DIR = src
