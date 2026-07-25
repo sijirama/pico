@@ -87,6 +87,11 @@ static double gflops(double flops, double seconds) {
     return flops / seconds / 1e9;
 }
 
+static struct stats stats_from_samples(double samples[SAMPLES]) {
+    qsort(samples, SAMPLES, sizeof(double), cmp_double);
+    return (struct stats){.min = samples[0], .median = samples[SAMPLES / 2], .max = samples[SAMPLES - 1]};
+}
+
 static void print_runtime_context(void) {
     const char* omp_threads = getenv("OMP_NUM_THREADS");
     const char* omp_bind = getenv("OMP_PROC_BIND");
@@ -112,27 +117,6 @@ static void print_runtime_context(void) {
     }
 }
 
-static struct stats time_pico(matmul_fn fn, struct PicoTensor* a, struct PicoTensor* b,
-                              struct PicoTensor* out) {
-    double samples[SAMPLES];
-    size_t bytes = (size_t)out->numel * sizeof(float);
-
-    for(int w = 0; w < WARMUP; w++) {
-        memset(out->data, 0, bytes);
-        fn(a, b, out);
-    }
-
-    for(int s = 0; s < SAMPLES; s++) {
-        memset(out->data, 0, bytes);
-        double t0 = now_sec();
-        fn(a, b, out);
-        samples[s] = now_sec() - t0;
-    }
-
-    qsort(samples, SAMPLES, sizeof(double), cmp_double);
-    return (struct stats){.min = samples[0], .median = samples[SAMPLES / 2], .max = samples[SAMPLES - 1]};
-}
-
 #ifdef USE_CBLAS
 static void blas_sgemm(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     int m = a->shape[0];
@@ -141,23 +125,35 @@ static void blas_sgemm(struct PicoTensor* a, struct PicoTensor* b, struct PicoTe
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1.0f, a->data, k, b->data, n,
                 0.0f, out->data, n);
 }
+#endif
 
-static struct stats time_blas(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
-    double samples[SAMPLES];
+static void time_strategies(struct strat* strats, int n_strats, struct PicoTensor* a,
+                            struct PicoTensor* b, struct PicoTensor** outs,
+                            struct stats* results) {
+    double samples[n_strats][SAMPLES];
+    size_t bytes = (size_t)outs[0]->numel * sizeof(float);
 
-    for(int w = 0; w < WARMUP; w++)
-        blas_sgemm(a, b, out);
-
-    for(int s = 0; s < SAMPLES; s++) {
-        double t0 = now_sec();
-        blas_sgemm(a, b, out);
-        samples[s] = now_sec() - t0;
+    for(int w = 0; w < WARMUP; w++) {
+        for(int st = 0; st < n_strats; st++) {
+            memset(outs[st]->data, 0, bytes);
+            strats[st].fn(a, b, outs[st]);
+        }
     }
 
-    qsort(samples, SAMPLES, sizeof(double), cmp_double);
-    return (struct stats){.min = samples[0], .median = samples[SAMPLES / 2], .max = samples[SAMPLES - 1]};
+    for(int s = 0; s < SAMPLES; s++) {
+        for(int offset = 0; offset < n_strats; offset++) {
+            int st = (s + offset) % n_strats;
+            memset(outs[st]->data, 0, bytes);
+            double t0 = now_sec();
+            strats[st].fn(a, b, outs[st]);
+            samples[st][s] = now_sec() - t0;
+        }
+    }
+
+    for(int st = 0; st < n_strats; st++) {
+        results[st] = stats_from_samples(samples[st]);
+    }
 }
-#endif
 
 int main(void) {
     pico_init();
@@ -166,6 +162,9 @@ int main(void) {
         {"8x8-family", pico_matmul_cpu_avx_8x8},
         {"16x-family", pico_matmul_cpu_avx_16x},
         {"pico-avx", pico_matmul_cpu_avx},
+#ifdef USE_CBLAS
+        {BLAS_NAME, blas_sgemm},
+#endif
     };
     int n_strats = (int)(sizeof(strats) / sizeof(strats[0]));
 
@@ -195,11 +194,15 @@ int main(void) {
 
         struct PicoTensor* a = pico_param(sa, 2);
         struct PicoTensor* b = pico_param(sb, 2);
-        struct PicoTensor* out = pico_param(so, 2);
         struct PicoTensor* ref = pico_param(so, 2);
+        struct PicoTensor* outs[n_strats];
+        struct stats results[n_strats];
 
         fill_tensor(a, 13, 0.25f);
         fill_tensor(b, 7, 0.5f);
+        for(int st = 0; st < n_strats; st++) {
+            outs[st] = pico_param(so, 2);
+        }
 
 #ifdef USE_CBLAS
         blas_sgemm(a, b, ref);
@@ -214,28 +217,29 @@ int main(void) {
         printf("  %-14s %10s %10s %10s %10s\n", "strategy", "min", "median", "max", "diff");
         printf("  -------------------------------------------------------------\n");
 
+        time_strategies(strats, n_strats, a, b, outs, results);
+
         for(int st = 0; st < n_strats; st++) {
-            memset(out->data, 0, (size_t)out->numel * sizeof(float));
-            strats[st].fn(a, b, out);
-            float diff = max_abs_diff(out, ref);
-            struct stats result = time_pico(strats[st].fn, a, b, out);
+            float diff = max_abs_diff(outs[st], ref);
+            const char* suffix = diff > TOL ? " MISMATCH" : "";
+#ifdef USE_CBLAS
+            if(strats[st].fn == blas_sgemm) {
+                diff = 0.0f;
+                suffix = " ref";
+            }
+#endif
 
             printf("  %-14s %10.2f %10.2f %10.2f %10.3e%s\n", strats[st].name,
-                   gflops(flops, result.max), gflops(flops, result.median),
-                   gflops(flops, result.min), diff, diff > TOL ? " MISMATCH" : "");
+                   gflops(flops, results[st].max), gflops(flops, results[st].median),
+                   gflops(flops, results[st].min), diff, suffix);
         }
-
-#ifdef USE_CBLAS
-        struct stats blas_result = time_blas(a, b, out);
-        printf("  %-14s %10.2f %10.2f %10.2f %10s\n", BLAS_NAME,
-               gflops(flops, blas_result.max), gflops(flops, blas_result.median),
-               gflops(flops, blas_result.min), "ref");
-#endif
 
         pico_free(a);
         pico_free(b);
-        pico_free(out);
         pico_free(ref);
+        for(int st = 0; st < n_strats; st++) {
+            pico_free(outs[st]);
+        }
     }
 
     printf("\n");

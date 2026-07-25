@@ -8,7 +8,7 @@
 #endif
 
 #ifndef MATMUL_PREFETCH_B_DISTANCE
-#define MATMUL_PREFETCH_B_DISTANCE 16
+#define MATMUL_PREFETCH_B_DISTANCE 8
 #endif
 
 #ifndef MATMUL_CACHE_BLOCK_SIZE
@@ -27,12 +27,12 @@
 //  stays outside the hot k loop, so we do less prefetch work while the fma loop
 //  is running.
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx16_prefetch_b_panel(
-    struct PicoTensor* b, int k_dim, int columns, int j) {
+    struct PicoTensor* b, int k_start, int k_end, int columns, int j) {
     int prefetch_j = j + MATMUL_PREFETCH_B_DISTANCE;
     if(prefetch_j + 16 > columns)
         return;
 
-    for(int k = 0; k < k_dim; k += 16) {
+    for(int k = k_start; k < k_end; k += 16) {
         __builtin_prefetch(&b->data[k * b->strides[0] + prefetch_j * b->strides[1]], 0, 3);
     }
 }
@@ -78,7 +78,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
                 for(; i + roll <= rows; i += roll) {
                     int j = jj;
                     for(; j + 16 <= cols; j += 16) {
-                        pico_matmul_cpu_avx16_prefetch_b_panel(b, k_end, cols, j);
+                        pico_matmul_cpu_avx16_prefetch_b_panel(b, kk, k_end, cols, j);
                         pico_matmul_cpu_avx_kernel_6_16(a, b, out, kk, k_end, i, j);
                     }
                     for(; j + 8 <= cols; j += 8) {
