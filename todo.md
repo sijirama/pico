@@ -1,99 +1,86 @@
-# pico — Consolidation Sprint (weekend + week)
+# pico todo
 
-**Goal:** before adding *any* new components, clean up and harden what we have.
-The engine is correct and trainable (tensors, autograd, broadcasting, matmul,
-unary ops + backwards, relu, MSE, SGD, Linear, rand/randn — all tested, asan-clean).
-Now make it **fast, consistent, and pleasant to use** — that's pico's whole point
-("genuinely fast… not just correct").
+## 1. Training loop foundation
 
-**Rule of the sprint:** no new features/layers until this list is done.
+- [ ] Add module parameter collection.
+  - Optimizers should be able to receive all trainable tensors from a model cleanly.
 
----
+- [ ] Add `train` / `eval` mode support for modules.
+  - Needed before dropout, batch norm, and any behavior that changes between training and inference.
 
-## ✅ Done
-- [x] **Makefile header-dep tracking** (`-MMD -MP` + `-include $(DEPS)`).
-      Editing a `.h` now recompiles only the `.c` files that include it — kills the
-      stale-`obj/` "passes standalone, fails in suite" ghost for good.
+- [ ] Add a cleaner zero-grad flow.
+  - Training loops should not need to manually know every parameter.
 
----
+## 2. Data input
 
-## Phase 1 — Performance core (the reason pico exists)
+- [ ] Add a dataset abstraction.
+  - Start simple: length + get item.
 
-- [~] **1. Bundle the dispatchers.**
-  - [x] **Kernels deduped** (`scalar.h`): `PICO_DEFINE_BINARY_SCALAR_OP` /
-        `PICO_DEFINE_UNARY_SCALAR_OP` macros stamp out add/sub/mul + sqrt/sin/cos/
-        tan/tanh/log. 9 hand-written loops → 2 macros; new elementwise op = 1 line.
-        Binary macro takes the full EXPRESSION (flexible for future fused ops).
-        126 tests green on both sides = provably behavior-preserving.
-x - [ ] **Wrapper `switch(g_simd_level)` dedup (cpu_kernels.h) — DEFERRED on purpose.**
-        Each wrapper has only one case today; the SIMD dispatch shape isn't proven
-        yet. Don't abstract a guess — wait until the first real AVX2 kernel (#3)
-        reveals what the dispatch needs, then dedupe from knowledge. `##` name-paste
-        works but is un-greppable/magic; adding a SIMD level is a ~3-times-ever
-        change, not worth contorting readable code for. Revisit when it feels ready.
--x[ ] **2. _(reserved / TBD)_**
-- [~] **3. First real SIMD kernel — element-wise ops.**
-  - [x] **AVX2 binary family (add/sub/mul) written + PROVEN.** One macro
-        `PICO_DEFINE_BINARY_OP_AVX2_FP32(name, simd_op, op)` stamps all three
-        (`__attribute__((target("avx2")))`, `_ps` intrinsics + scalar tail;
-        `else` = scalar map_index fallback for broadcast). All three wired via
-        `case SIMD_AVX2` (+ break). tests/kernels/test_avx2.c forces the level
-        (save/restore, cpu-supports guard) — sizes 16/19/5 across the ops. 135 green.
-  - [x] **`bench/` pillar stood up** (`make bench`, -O2, correctness gate + GFLOP/s).
-        First number: matmul scalar 2.46 GFLOP/s vs AVX 7.69 = **3.12x**, bit-exact.
-        (3x not 8x: -O2 auto-vec's the scalar baseline to SSE + cache effects — the
-        honest hand-AVX-vs-optimized-scalar number.) bench/bench_matmul.c.
-  - [ ] **Bench the elementwise add** too (scalar vs AVX2) — expect it memory-BW-bound
-        (modest speedup), the instructive contrast to compute-bound matmul.
-  - [ ] **Broadcast AVX2** (the `else`): stride-walk — loadu (stride 1) / splat
-        (inner stride 0) / rewind pointer (outer stride 0). The nditer/TensorIterator
-        pattern. Do after the same-shape number is measured.
-  - [ ] **3.b. First real GPU kernel — element-wise ops.** CUDA with bundle dispatcher right
+- [ ] Add a dataloader abstraction.
+  - Batching, optional shuffle, and predictable iteration.
 
-- [ ] **4. Loop unrolling** in the hot kernels (matmul inner loop, element-wise).
-      Pair with the SIMD work; measure before/after.
-- [ ] **11. Line-by-line optimization pass** — read the hot paths deliberately
-      (matmul, map_index/broadcast, kernels) looking for wins now that it's shaped.
+- [ ] Add tensor batching helpers.
+  - Make it easy to turn dataset samples into input/target tensors.
 
-## Phase 2 — Structure & conventions
+## 3. Saving and loading
 
-- [x] **6. Arena convention (decide + apply everywhere).** Temporary allocation
-      APIs take `struct Arena* arena` as the first argument. Passing `NULL` falls
-      back to the current/default arena, and `pico_init()` creates a 32 MiB default
-      arena that `pico_shutdown()` destroys.
-- [ ] **5 + 7. File organization.** Tidy `src/` layout. Specific nit: **two
-      `autograd.h`** (`src/autograd.h` and `src/act/autograd.h`) — name collision
-      that only works via same-dir include precedence.
-  - [x] Rename activation backward header to `src/act/act_autograd.h`.
-  - [ ] Group kernels/ops/nn coherently.
-- [~] **8. Better function names.** Audit for clarity/consistency.
-  - [x] Rename unary math ops from `pico_tensor_*` to `pico_*`
-        (`pico_sqrt`, `pico_sin`, `pico_log`, etc.).
-  - [ ] Revisit module/loss constructor names once the higher-level API settles.
+- [ ] Add tensor save/load.
+  - Use a simple stable format first.
 
-## Phase 3 — Developer experience & docs
+- [ ] Add model checkpoint save/load.
+  - Save module parameters in a way that can be restored later.
 
-- [~] **10. DX pass.** Fewer functions to call.
-  - [x] Add **`pico_tensor_from_data`** to build a tensor from a C array + shape
-        in one call.
-  - [x] Add a clean end-to-end **example in the README** using the tidied-up API.
-- [~] **9. More & better tests.** Fill coverage gaps found during cleanup.
-  - [x] Add matmul scalar-reference tests for `SIMD_AVX` and `SIMD_AVX2`
-        dispatch across clean tiles, tails, and cache-block boundary shapes.
-  - [x] MSE shape-compat guard added, with tests for shape and ndim mismatch.
-  - [x] randn guards the `log(0)` edge and tests generated values are finite.
-  - [x] randn preserves requested shape for odd 1D and multidim tensors.
-- [x] **BETTER COMMENTS (added item).** Readable, explain-the-why comments
-      throughout so the whole codebase is understandable on a re-read — not just
-      what a line does, but why it's there and what the tricky bits mean.
+- [ ] Decide whether optimizer state should be saved now or later.
+  - Needed for Adam/resume-training, not needed for first basic checkpoints.
 
-## Phase 4 — Wrap
+## 4. More training pieces
 
-- [ ] **12. Final cleanup.** Sweep for leftovers, dead code, TODOs; confirm
-      `make test` + `make asan` fully green; update this file + progress notes.
+- [ ] Add more loss functions.
+  - MAE, BCE, and cross entropy are the first useful ones.
 
----
+- [ ] Add more optimizers.
+  - Momentum SGD and Adam first.
 
-## After the sprint
-Once the above is clean, resume building components (softmax + cross-entropy, an
-MLP module wrapping Linear→relu→Linear, more optimizers, then the SIMD/GPU roadmap).
+- [ ] Add regularizers.
+  - Start with L2 / weight decay.
+
+- [ ] Add normalizers.
+  - Layer norm first; batch norm later if the module API is ready.
+
+- [ ] Add dropout.
+  - Depends on `train` / `eval` mode.
+
+## 5. Model ergonomics
+
+- [ ] Add a simple `Sequential` / MLP-style module wrapper.
+  - Enough to build Linear -> activation -> Linear without boilerplate.
+
+- [ ] Revisit module/loss/optimizer constructor names.
+  - Do this after the higher-level API shape is clearer.
+
+- [ ] Clean up examples around the final training API.
+  - README and examples should show the simplest real training loop.
+
+## 6. Performance follow-up
+
+- [ ] Benchmark elementwise add.
+  - Compare scalar vs AVX2 and document the memory-bandwidth limit.
+
+- [ ] Add AVX2 broadcast support for elementwise ops.
+  - Handle stride-walk, splat, and scalar tails properly.
+
+- [ ] Revisit matmul tuning later.
+  - Cache blocking, prefetch, OpenMP tuning, and MKL/OpenBLAS comparisons live here.
+
+- [ ] Revisit CUDA elementwise kernels.
+  - Only after the CPU API is stable.
+
+## 7. Codebase cleanup
+
+- [ ] Group `src/` more coherently.
+  - Kernels, ops, nn, loss, optim, data, and serialization should be easy to find.
+
+- [ ] Sweep old TODOs and dead code.
+  - Keep comments that explain why; delete comments that only repeat the code.
+
+- [ ] Keep `make test` and `make asan` green after each phase.
