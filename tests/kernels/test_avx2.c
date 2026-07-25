@@ -69,7 +69,7 @@ UTEST(kernel_avx2, add_size16_two_vectors) {
         b->data[i] = (float)(i * 10);
     }
 
-    struct PicoTensor* out = pico_add(a, b);
+    struct PicoTensor* out = pico_add(NULL, a, b);
 
     // capture across BOTH vector iterations before teardown
     float o0 = out->data[0];    // 0
@@ -109,7 +109,7 @@ UTEST(kernel_avx2, add_size19_vector_plus_tail) {
         b->data[i] = (float)i;
     }
 
-    struct PicoTensor* out = pico_add(a, b);
+    struct PicoTensor* out = pico_add(NULL, a, b);
 
     float o0 = out->data[0];    // 0   (vector)
     float o15 = out->data[15];  // 30  (last vector elem)
@@ -151,7 +151,7 @@ UTEST(kernel_avx2, add_size5_only_tail) {
         b->data[i] = (float)(i * 2);
     }
 
-    struct PicoTensor* out = pico_add(a, b);
+    struct PicoTensor* out = pico_add(NULL, a, b);
 
     float o0 = out->data[0];  // 0
     float o4 = out->data[4];  // 12
@@ -189,7 +189,7 @@ UTEST(kernel_avx2, sub_size16_two_vectors) {
         b->data[i] = (float)i;
     }
 
-    struct PicoTensor* out = pico_sub(a, b);
+    struct PicoTensor* out = pico_sub(NULL, a, b);
     float o0 = out->data[0];    // 0
     float o7 = out->data[7];    // 14
     float o8 = out->data[8];    // 16
@@ -226,7 +226,7 @@ UTEST(kernel_avx2, sub_size19_vector_plus_tail) {
         b->data[i] = (float)i;
     }
 
-    struct PicoTensor* out = pico_sub(a, b);
+    struct PicoTensor* out = pico_sub(NULL, a, b);
     float o15 = out->data[15];  // 30 (vector)
     float o16 = out->data[16];  // 32 (tail)
     float o18 = out->data[18];  // 36 (tail)
@@ -261,7 +261,7 @@ UTEST(kernel_avx2, mul_size16_two_vectors) {
         b->data[i] = (float)i;
     }
 
-    struct PicoTensor* out = pico_mul(a, b);
+    struct PicoTensor* out = pico_mul(NULL, a, b);
     float o0 = out->data[0];    // 0
     float o7 = out->data[7];    // 49
     float o8 = out->data[8];    // 64
@@ -298,7 +298,7 @@ UTEST(kernel_avx2, mul_size19_vector_plus_tail) {
         b->data[i] = (float)i;
     }
 
-    struct PicoTensor* out = pico_mul(a, b);
+    struct PicoTensor* out = pico_mul(NULL, a, b);
     float o15 = out->data[15];  // 225 (vector)
     float o16 = out->data[16];  // 256 (tail)
     float o18 = out->data[18];  // 324 (tail)

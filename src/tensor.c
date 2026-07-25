@@ -84,6 +84,12 @@ struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim) {
 }
 
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim) {
+    arena = arena_resolve(arena);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for tensor allocation\n");
+        return NULL;
+    }
+
     struct PicoTensor* tensor = (struct PicoTensor*)arena_alloc(arena, sizeof(struct PicoTensor));
     if(tensor == NULL) {
         printf("Memory allocation failed!\n");
@@ -170,10 +176,10 @@ void pico_free(struct PicoTensor* tensor) {
 // a 1-element tensor holding `value`. shape {1} -> broadcasts against anything via
 // map_index (the size-1 dim is stretched). leaf tensor: no parents, _backward NULL
 // (pico_create_tensor already sets those), so it acts as a constant in the graph.
-struct PicoTensor* pico_tensor_from_scalar(float value) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_from_scalar(struct Arena* arena, float value) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for scalar tensor allocation\n");
         return NULL;
     }
 
@@ -274,7 +280,7 @@ struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) 
 
 // ============================= pico_randn
 
-struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim) {
+struct PicoTensor* pico_cat(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b, int dim) {
     if(a->backend != b->backend) {
         fprintf(
             stderr,
@@ -288,9 +294,9 @@ struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim)
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for cat allocation\n");
         return NULL;
     }
 
@@ -346,6 +352,12 @@ struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim)
 }
 
 struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim) {
+    arena = arena_resolve(arena);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for randn allocation\n");
+        return NULL;
+    }
+
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     memcpy(res_shape, shape, sizeof(int64_t) * ndim);
     res_shape[ndim - 1] = res_shape[ndim - 1] / 2;
@@ -354,14 +366,15 @@ struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim)
     struct PicoTensor* u2 = pico_rand(arena, res_shape, ndim);
 
     struct PicoTensor* mag =
-        pico_tensor_sqrt(pico_mul(pico_tensor_from_scalar(-2.0), pico_tensor_log(u1)));
+        pico_tensor_sqrt(arena, pico_mul(arena, pico_tensor_from_scalar(arena, -2.0), pico_tensor_log(arena, u1)));
     struct PicoTensor* angle =
-        pico_mul(pico_tensor_from_scalar(2.0), pico_mul(pico_tensor_from_scalar(PI_F), u2));
+        pico_mul(arena, pico_tensor_from_scalar(arena, 2.0),
+                 pico_mul(arena, pico_tensor_from_scalar(arena, PI_F), u2));
 
-    struct PicoTensor* z0 = pico_mul(mag, pico_tensor_cos(angle));
-    struct PicoTensor* z1 = pico_mul(mag, pico_tensor_sin(angle));
+    struct PicoTensor* z0 = pico_mul(arena, mag, pico_tensor_cos(arena, angle));
+    struct PicoTensor* z1 = pico_mul(arena, mag, pico_tensor_sin(arena, angle));
 
-    struct PicoTensor* tensor = pico_cat(z0, z1, 0);
+    struct PicoTensor* tensor = pico_cat(arena, z0, z1, 0);
 
     return tensor;
 }

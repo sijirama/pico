@@ -56,9 +56,9 @@ static void init_layer_weights(struct PicoLinear* l1, struct PicoLinear* l2) {
 
 static struct PicoTensor* forward(struct PicoLinear* l1, struct PicoLinear* l2,
                                   struct PicoTensor* x) {
-    struct PicoTensor* h = pico_nn_linear_forward(l1, x);
-    h = pico_relu(h);
-    return pico_nn_linear_forward(l2, h);
+    struct PicoTensor* h = pico_nn_linear_forward(NULL, l1, x);
+    h = pico_relu(NULL, h);
+    return pico_nn_linear_forward(NULL, l2, h);
 }
 
 int main(void) {
@@ -78,8 +78,8 @@ int main(void) {
     struct PicoTensor* y = pico_param(y_shape, 2);
     fill_dataset(x, y);
 
-    struct PicoLinear* l1 = pico_nn_linear_init(2, 4, true);
-    struct PicoLinear* l2 = pico_nn_linear_init(4, 1, true);
+    struct PicoLinear* l1 = pico_nn_linear_init(NULL, 2, 4, true);
+    struct PicoLinear* l2 = pico_nn_linear_init(NULL, 4, 1, true);
     init_layer_weights(l1, l2);
 
     struct PicoOptimSGD* opt = pico_optim_sgd_init(0.001f);
@@ -95,7 +95,7 @@ int main(void) {
 
     for(int step = 0; step <= 800; step++) {
         struct PicoTensor* pred = forward(l1, l2, x);
-        struct PicoTensor* loss = pico_mse_loss(&mse, pred, y);
+        struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, y);
 
         if(step % 100 == 0) {
             printf("step %3d | loss %.6f | pred[0] %.4f | target[0] %.4f\n", step,
@@ -110,7 +110,7 @@ int main(void) {
     }
 
     struct PicoTensor* final_pred = forward(l1, l2, x);
-    struct PicoTensor* final_loss = pico_mse_loss(&mse, final_pred, y);
+    struct PicoTensor* final_loss = pico_mse_loss(NULL, &mse, final_pred, y);
 
     printf("\nfinal loss: %.6f\n", final_loss->data[0]);
     printf("\nfirst four predictions:\n");

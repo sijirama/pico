@@ -5,10 +5,10 @@
 #include "autograd.h"
 #include "tensor.h"
 
-struct PicoTensor* pico_relu(struct PicoTensor* x) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_relu(struct Arena* arena, struct PicoTensor* x) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for relu allocation\n");
         return NULL;
     }
     struct PicoTensor* out = pico_create_tensor(arena, x->shape, x->ndim);
@@ -25,10 +25,10 @@ struct PicoTensor* pico_relu(struct PicoTensor* x) {
     return out;
 }
 
-struct PicoTensor* pico_sigmoid(struct PicoTensor* x) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_sigmoid(struct Arena* arena, struct PicoTensor* x) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sigmoid allocation\n");
         return NULL;
     }
     struct PicoTensor* out = pico_create_tensor(arena, x->shape, x->ndim);
@@ -45,10 +45,10 @@ struct PicoTensor* pico_sigmoid(struct PicoTensor* x) {
     return out;
 }
 
-struct PicoTensor* pico_tanh(struct PicoTensor* x) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tanh(struct Arena* arena, struct PicoTensor* x) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for tanh activation allocation\n");
         return NULL;
     }
     struct PicoTensor* out = pico_create_tensor(arena, x->shape, x->ndim);
