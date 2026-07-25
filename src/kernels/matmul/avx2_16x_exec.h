@@ -3,6 +3,31 @@
 #include "kernels/matmul/avx2_6x16.h"
 #include "tensor.h"
 
+#ifndef MATMUL_OPENMP_MIN_FLOPS
+#define MATMUL_OPENMP_MIN_FLOPS 16000000LL
+#endif
+
+#ifndef MATMUL_PREFETCH_B_DISTANCE
+#define MATMUL_PREFETCH_B_DISTANCE 16
+#endif
+
+// INFO: this is a side ways prefetch for b panels. when the j loop is on
+//  b[0..k_dim][j..j+15], the next j tile will use b[0..k_dim][j+16..j+31].
+//  so before we call the 6x16 kernel for the current tile, we touch a few rows
+//  from the next b panel and give the cpu a chance to pull them closer. this
+//  stays outside the hot k loop, so we do less prefetch work while the fma loop
+//  is running.
+__attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx16_prefetch_b_panel(
+    struct PicoTensor* b, int k_dim, int columns, int j) {
+    int prefetch_j = j + MATMUL_PREFETCH_B_DISTANCE;
+    if(prefetch_j + 16 > columns)
+        return;
+
+    for(int k = 0; k < k_dim; k += 16) {
+        __builtin_prefetch(&b->data[k * b->strides[0] + prefetch_j * b->strides[1]], 0, 3);
+    }
+}
+
 static inline void pico_matmul_cpu_avx16_kernel_scalar_Xx1(struct PicoTensor* a, struct PicoTensor* b,
                                                            struct PicoTensor* out, int k_dim, int i, int j, int roll) {
     float m_cells[roll];
@@ -29,6 +54,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
     for(; i + roll <= rows; i += roll) {
         int j = 0;
         for(; j + 16 <= columns; j += 16) {
+            pico_matmul_cpu_avx16_prefetch_b_panel(b, k_dim, columns, j);
             pico_matmul_cpu_avx_kernel_6_16(a, b, out, k_dim, i, j);
         }
         for(; j + 8 <= columns; j += 8) {
@@ -97,5 +123,25 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx_16x(struct PicoTensor* a,
                                                                                struct PicoTensor* b,
                                                                                struct PicoTensor* out) {
-    pico_matmul_cpu_avx_16x_exec(a, b, out, 0, a->shape[0], b->shape[1], a->shape[1]);
+    int rows = a->shape[0];
+    int columns = b->shape[1];
+    int k_dim = a->shape[1];
+    int roll = 6;
+
+    // NOTE: first row not covered by the parallel 6-row tiles.
+    // Example: rows=20, roll=6 -> parallel rows [0..17], tail starts at row 18.
+    int tail_start = (rows / roll) * roll;
+    long long flops = 2LL * (long long)rows * (long long)columns * (long long)k_dim;
+
+    if(flops >= MATMUL_OPENMP_MIN_FLOPS) {
+#pragma omp parallel for schedule(static)
+        for(int i = 0; i <= rows - roll; i += roll) {
+            pico_matmul_cpu_avx_16x_exec(a, b, out, i, i + roll, columns, k_dim);
+        }
+
+        pico_matmul_cpu_avx_16x_exec(a, b, out, tail_start, rows, columns, k_dim);
+        return;
+    }
+
+    pico_matmul_cpu_avx_16x_exec(a, b, out, 0, rows, columns, k_dim);
 }
