@@ -5,7 +5,7 @@
 #include "tensor.h"
 
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_kernel_6_16(
-    struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_dim, int i, int j) {
+    struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i, int j) {
     __m256 b_vec_0;
     __m256 b_vec_1;
     __m256 m_vec_a;
@@ -25,7 +25,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
     __m256 acc5_0 = _mm256_loadu_ps(&out->data[(i + 5) * out->strides[0] + (j * out->strides[1]) + 0]);
     __m256 acc5_1 = _mm256_loadu_ps(&out->data[(i + 5) * out->strides[0] + (j * out->strides[1]) + 8]);
 
-    for(int k = 0; k < k_dim; k++) {
+    for(int k = k_start; k < k_end; k++) {
         b_vec_0 = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1] + 0]);
         b_vec_1 = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1] + 8]);
 
@@ -69,7 +69,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 }
 
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_kernel_6_8(
-    struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_dim, int i, int j) {
+    struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i, int j) {
     __m256 b_vec;
     __m256 m_vec_a;
     __m256 m_vec_b;
@@ -81,7 +81,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
     __m256 acc4 = _mm256_loadu_ps(&out->data[(i + 4) * out->strides[0] + (j * out->strides[1])]);
     __m256 acc5 = _mm256_loadu_ps(&out->data[(i + 5) * out->strides[0] + (j * out->strides[1])]);
 
-    for(int k = 0; k < k_dim; k++) {
+    for(int k = k_start; k < k_end; k++) {
         b_vec = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1]]);
 
         m_vec_a = _mm256_set1_ps(a->data[(i + 0) * a->strides[0] + k * a->strides[1]]);
@@ -113,7 +113,8 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 
 #define PICO_DEFINE_MATMUL_CPU_AVX_KERNEL_X_16(roll)                                                              \
     __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_kernel_##roll##_16( \
-        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_dim, int i, int j) {            \
+        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i,        \
+        int j) {                                                                                                  \
         __m256 acc0[roll];                                                                                        \
         __m256 acc1[roll];                                                                                        \
                                                                                                                   \
@@ -122,7 +123,7 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
             acc1[r] = _mm256_loadu_ps(&out->data[(i + r) * out->strides[0] + j * out->strides[1] + 8]);           \
         }                                                                                                         \
                                                                                                                   \
-        for(int k = 0; k < k_dim; k++) {                                                                          \
+        for(int k = k_start; k < k_end; k++) {                                                                    \
             __m256 b_vec_0 = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1] + 0]);                \
             __m256 b_vec_1 = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1] + 8]);                \
                                                                                                                   \
@@ -141,14 +142,15 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 
 #define PICO_DEFINE_MATMUL_CPU_AVX_KERNEL_X_8(roll)                                                                \
     __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx16_kernel_##roll##_8( \
-        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_dim, int i, int j) {             \
+        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i,         \
+        int j) {                                                                                                   \
         __m256 acc[roll];                                                                                          \
                                                                                                                    \
         _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                                                   \
             acc[r] = _mm256_loadu_ps(&out->data[(i + r) * out->strides[0] + j * out->strides[1]]);                 \
         }                                                                                                          \
                                                                                                                    \
-        for(int k = 0; k < k_dim; k++) {                                                                           \
+        for(int k = k_start; k < k_end; k++) {                                                                     \
             __m256 b_vec = _mm256_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1]]);                       \
                                                                                                                    \
             _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                                               \
@@ -164,14 +166,15 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 
 #define PICO_DEFINE_MATMUL_CPU_SSE_KERNEL_X_4(roll)                                                         \
     __attribute__((target("sse"), always_inline)) static inline void pico_matmul_cpu_sse_kernel_##roll##_4( \
-        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_dim, int i, int j) {      \
+        struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i,  \
+        int j) {                                                                                            \
         __m128 acc[roll];                                                                                   \
                                                                                                             \
         _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                                            \
             acc[r] = _mm_loadu_ps(&out->data[(i + r) * out->strides[0] + j * out->strides[1]]);             \
         }                                                                                                   \
                                                                                                             \
-        for(int k = 0; k < k_dim; k++) {                                                                    \
+        for(int k = k_start; k < k_end; k++) {                                                              \
             __m128 b_vec = _mm_loadu_ps(&b->data[k * b->strides[0] + j * b->strides[1]]);                   \
                                                                                                             \
             _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {                                        \
