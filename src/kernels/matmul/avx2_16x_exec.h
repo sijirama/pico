@@ -11,6 +11,10 @@
 #define MATMUL_PREFETCH_B_DISTANCE 16
 #endif
 
+#ifndef MATMUL_CACHE_BLOCK_SIZE
+#define MATMUL_CACHE_BLOCK_SIZE 64
+#endif
+
 // INFO: this is a side ways prefetch for b panels. when the j loop is on
 //  b[0..k_dim][j..j+15], the next j tile will use b[0..k_dim][j+16..j+31].
 //  so before we call the 6x16 kernel for the current tile, we touch a few rows
@@ -29,9 +33,10 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
 }
 
 static inline void pico_matmul_cpu_avx16_kernel_scalar_Xx1(struct PicoTensor* a, struct PicoTensor* b,
-                                                           struct PicoTensor* out, int k_dim, int i, int j, int roll) {
+                                                           struct PicoTensor* out, int k_start, int k_end, int i, int j,
+                                                           int roll) {
     float m_cells[roll];
-    for(int k = 0; k < k_dim; k += 1) {
+    for(int k = k_start; k < k_end; k += 1) {
         _Pragma("GCC unroll 16") for(int r = 0; r < roll; r++) {
             m_cells[r] = a->data[(i + r) * a->strides[0] + k * a->strides[1]];
         }
@@ -46,76 +51,88 @@ static inline void pico_matmul_cpu_avx16_kernel_scalar_Xx1(struct PicoTensor* a,
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_16x_exec(
     struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int row_start, int row_end, int columns,
     int k_dim) {
-    int i = row_start;
-    int rows = row_end;
-    int roll = 0;
+    int block = MATMUL_CACHE_BLOCK_SIZE;
 
-    roll = 6;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 16 <= columns; j += 16) {
-            pico_matmul_cpu_avx16_prefetch_b_panel(b, k_dim, columns, j);
-            pico_matmul_cpu_avx_kernel_6_16(a, b, out, k_dim, i, j);
-        }
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx_kernel_6_8(a, b, out, k_dim, i, j);
-        }
-        for(; j + 4 <= columns; j += 4) {
-            pico_matmul_cpu_sse_kernel_6_4(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, k_dim, i, j, roll);
-        }
-    }
+    for(int ii = row_start; ii < row_end; ii += block) {
+        int rows = MIN(ii + block, row_end);
 
-    roll = 4;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 16 <= columns; j += 16) {
-            pico_matmul_cpu_avx_kernel_4_16(a, b, out, k_dim, i, j);
-        }
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx16_kernel_4_8(a, b, out, k_dim, i, j);
-        }
-        for(; j + 4 <= columns; j += 4) {
-            pico_matmul_cpu_sse_kernel_4_4(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, k_dim, i, j, roll);
-        }
-    }
+        for(int jj = 0; jj < columns; jj += block) {
+            int cols = MIN(jj + block, columns);
 
-    roll = 2;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 16 <= columns; j += 16) {
-            pico_matmul_cpu_avx_kernel_2_16(a, b, out, k_dim, i, j);
-        }
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx16_kernel_2_8(a, b, out, k_dim, i, j);
-        }
-        for(; j + 4 <= columns; j += 4) {
-            pico_matmul_cpu_sse_kernel_2_4(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, k_dim, i, j, roll);
-        }
-    }
+            for(int kk = 0; kk < k_dim; kk += block) {
+                int k_end = MIN(kk + block, k_dim);
+                int i = ii;
+                int roll = 0;
 
-    roll = 1;
-    for(; i + roll <= rows; i += roll) {
-        int j = 0;
-        for(; j + 16 <= columns; j += 16) {
-            pico_matmul_cpu_avx_kernel_1_16(a, b, out, k_dim, i, j);
-        }
-        for(; j + 8 <= columns; j += 8) {
-            pico_matmul_cpu_avx16_kernel_1_8(a, b, out, k_dim, i, j);
-        }
-        for(; j + 4 <= columns; j += 4) {
-            pico_matmul_cpu_sse_kernel_1_4(a, b, out, k_dim, i, j);
-        }
-        for(; j < columns; j++) {
-            pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, k_dim, i, j, roll);
+                roll = 6;
+                for(; i + roll <= rows; i += roll) {
+                    int j = jj;
+                    for(; j + 16 <= cols; j += 16) {
+                        pico_matmul_cpu_avx16_prefetch_b_panel(b, k_end, cols, j);
+                        pico_matmul_cpu_avx_kernel_6_16(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 8 <= cols; j += 8) {
+                        pico_matmul_cpu_avx_kernel_6_8(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 4 <= cols; j += 4) {
+                        pico_matmul_cpu_sse_kernel_6_4(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j < cols; j++) {
+                        pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, kk, k_end, i, j, roll);
+                    }
+                }
+
+                roll = 4;
+                for(; i + roll <= rows; i += roll) {
+                    int j = jj;
+                    for(; j + 16 <= cols; j += 16) {
+                        pico_matmul_cpu_avx_kernel_4_16(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 8 <= cols; j += 8) {
+                        pico_matmul_cpu_avx16_kernel_4_8(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 4 <= cols; j += 4) {
+                        pico_matmul_cpu_sse_kernel_4_4(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j < cols; j++) {
+                        pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, kk, k_end, i, j, roll);
+                    }
+                }
+
+                roll = 2;
+                for(; i + roll <= rows; i += roll) {
+                    int j = jj;
+                    for(; j + 16 <= cols; j += 16) {
+                        pico_matmul_cpu_avx_kernel_2_16(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 8 <= cols; j += 8) {
+                        pico_matmul_cpu_avx16_kernel_2_8(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 4 <= cols; j += 4) {
+                        pico_matmul_cpu_sse_kernel_2_4(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j < cols; j++) {
+                        pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, kk, k_end, i, j, roll);
+                    }
+                }
+
+                roll = 1;
+                for(; i + roll <= rows; i += roll) {
+                    int j = jj;
+                    for(; j + 16 <= cols; j += 16) {
+                        pico_matmul_cpu_avx_kernel_1_16(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 8 <= cols; j += 8) {
+                        pico_matmul_cpu_avx16_kernel_1_8(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j + 4 <= cols; j += 4) {
+                        pico_matmul_cpu_sse_kernel_1_4(a, b, out, kk, k_end, i, j);
+                    }
+                    for(; j < cols; j++) {
+                        pico_matmul_cpu_avx16_kernel_scalar_Xx1(a, b, out, kk, k_end, i, j, roll);
+                    }
+                }
+            }
         }
     }
 }
