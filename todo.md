@@ -25,13 +25,13 @@ Now make it **fast, consistent, and pleasant to use** — that's pico's whole po
         tan/tanh/log. 9 hand-written loops → 2 macros; new elementwise op = 1 line.
         Binary macro takes the full EXPRESSION (flexible for future fused ops).
         126 tests green on both sides = provably behavior-preserving.
-  - [ ] **Wrapper `switch(g_simd_level)` dedup (cpu_kernels.h) — DEFERRED on purpose.**
+x - [ ] **Wrapper `switch(g_simd_level)` dedup (cpu_kernels.h) — DEFERRED on purpose.**
         Each wrapper has only one case today; the SIMD dispatch shape isn't proven
         yet. Don't abstract a guess — wait until the first real AVX2 kernel (#3)
         reveals what the dispatch needs, then dedupe from knowledge. `##` name-paste
         works but is un-greppable/magic; adding a SIMD level is a ~3-times-ever
         change, not worth contorting readable code for. Revisit when it feels ready.
-- [ ] **2. _(reserved / TBD)_**
+-x[ ] **2. _(reserved / TBD)_**
 - [~] **3. First real SIMD kernel — element-wise ops.**
   - [x] **AVX2 binary family (add/sub/mul) written + PROVEN.** One macro
         `PICO_DEFINE_BINARY_OP_AVX2_FP32(name, simd_op, op)` stamps all three

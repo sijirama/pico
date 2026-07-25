@@ -28,6 +28,9 @@ int main(void) {
     struct PicoTensor* z = pico_sqrt(NULL, y);
 
     pico_tensor_print(z);
+    // example output:
+    // PicoTensor(shape=[3], numel=3)
+    // [1.41421, 2, 2.44949]
 
     pico_shutdown();
     return 0;
