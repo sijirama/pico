@@ -15,7 +15,9 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef USE_CBLAS
+#ifdef USE_MKL
+#include <mkl.h>
+#elif defined(USE_CBLAS)
 #include <cblas.h>
 #endif
 

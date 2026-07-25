@@ -11,8 +11,8 @@ make clean      # remove built binaries (bin/)
 ```
 
 Each benchmark is a standalone `bench_<name>.c` with its own `main()`. The target
-name drops the prefix, so `bench_matmul.c` runs as `make matmul`. Binaries land in
-`bin/`.
+name drops the prefix, so `matmul/bench_matmul.c` runs as `make matmul`. Binaries
+land in `bin/`.
 
 ## Methodology
 
@@ -39,15 +39,17 @@ between theoretical and measured is the point of measuring.
 
 | target | file | what it measures |
 |---|---|---|
-| `matmul` | `bench_matmul.c` | scalar vs AVX matmul, `N=512` square. Correctness-gated, reports ms/matmul, GFLOP/s, and speedup. Matmul is **compute-bound**, so SIMD pays off here. |
-| `avx_kernels` | `bench_avx_kernels.c` | sweep of matmul microkernel roll widths (scalar, 1×8, 2×8, 4×8, 8×8) + the adaptive AVX fn, across 6 matrix shapes (small/large/÷8 square, tall-skinny, short-wide, with-tails). Shows how **register pressure** and shape pick the winner. |
+| `matmul` | `matmul/bench_matmul.c` | scalar vs AVX matmul, `N=512` square. Correctness-gated, reports ms/matmul, GFLOP/s, and speedup. Matmul is **compute-bound**, so SIMD pays off here. |
+| `avx_kernels` | `matmul/bench_avx_kernels.c` | sweep of matmul microkernel roll widths (scalar, 1×8, 2×8, 4×8, 8×8) + the adaptive AVX fn, across 6 matrix shapes (small/large/÷8 square, tall-skinny, short-wide, with-tails). Shows how **register pressure** and shape pick the winner. |
 
 _As kernels land (AVX-512 matmul, elementwise add), add a row here and a
-`bench_<name>.c` file. Shared drivers/utilities live in `bench_common.h`._
+`bench_<name>.c` file. Shared matmul drivers/utilities live in
+`matmul/bench_common.h`._
 
 ## Notes per benchmark (cont.)
 
-**`avx_kernels`** — the per-roll full-matmul drivers live in `bench_common.h`
+**`avx_kernels`** — the per-roll full-matmul drivers live in
+`matmul/bench_common.h`
 (`BENCH_DEFINE_ROLL_DRIVER(R)` stamps each: R×8 tiles via the microkernel, scalar
 for the row/col tails). Each strategy is correctness-gated against scalar (tolerance
 `1e-1`, since summation order differs). Takeaway from the sweep: **larger tile ≠
