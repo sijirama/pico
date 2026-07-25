@@ -8,6 +8,9 @@
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
 typedef enum { CPU, GPU } PicoBackend;
 
+// INFO: PicoTensor is only the view/metadata plus pointers to storage. ownership
+// depends on is_persistent: params own heap memory, temp tensors point into an
+// arena and are freed by arena reset/destroy.
 struct PicoTensor {
     int64_t* shape;
     int64_t* strides;
@@ -19,18 +22,26 @@ struct PicoTensor {
     PicoBackend backend;
     uint8_t ndim;
     uint8_t num_parents;
-    uint8_t is_persistent;  // memory malloc'd ?
+    uint8_t is_persistent;  // 1 => heap-backed param, 0 => arena-backed temp
 };
 
 void pico_backward(struct Arena* arena, struct PicoTensor* entry);
 
+// INFO: params are persistent model/data tensors. use pico_free on these.
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim);
+
+// INFO: create_tensor is the temp constructor. ops use this for graph outputs,
+// so the result is owned by the arena and pico_free intentionally ignores it.
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim);
 
 // a 1-element tensor (shape {1}) holding a single scalar. broadcasts against any
 // shape, so you can do pico_mul(NULL, pico_tensor_from_scalar(NULL, 2.0f), t).
 // NULL means use the current ctx arena.
 struct PicoTensor* pico_tensor_from_scalar(struct Arena* arena, float value);
+
+// INFO: copies data into a new arena tensor. it does not borrow `data`, so stack
+// arrays and short-lived buffers are safe to pass here.
+struct PicoTensor* pico_tensor_from_data(struct Arena* arena, int64_t* shape, uint8_t ndim, const float* data);
 
 void pico_free(struct PicoTensor* tensor);
 

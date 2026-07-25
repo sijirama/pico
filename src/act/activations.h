@@ -11,4 +11,3 @@ static inline float sigmoid(float x) {
 
 struct PicoTensor* pico_relu(struct Arena* arena, struct PicoTensor* x);
 struct PicoTensor* pico_sigmoid(struct Arena* arena, struct PicoTensor* x);
-struct PicoTensor* pico_tanh(struct Arena* arena, struct PicoTensor* x);

@@ -57,30 +57,33 @@ Now make it **fast, consistent, and pleasant to use** — that's pico's whole po
 
 ## Phase 2 — Structure & conventions
 
-- [ ] **6. Arena convention (decide + apply everywhere).** Current inconsistency:
-      `pico_rand`/`randn` take `arena` explicitly, but ops + `from_scalar` use
-      `arena_ctx_current()`. Pick ONE rule and make it uniform. Options to weigh:
-      - always pass `arena` in explicitly, OR
-      - always use the ctx stack, OR
-      - "use ctx; if none, fall back to malloc" (your idea — but watch ownership).
-      Whatever we pick, document it and fix every creator/op to match.
+- [x] **6. Arena convention (decide + apply everywhere).** Temporary allocation
+      APIs take `struct Arena* arena` as the first argument. Passing `NULL` falls
+      back to the current/default arena, and `pico_init()` creates a 32 MiB default
+      arena that `pico_shutdown()` destroys.
 - [ ] **5 + 7. File organization.** Tidy `src/` layout. Specific nit: **two
       `autograd.h`** (`src/autograd.h` and `src/act/autograd.h`) — name collision
-      that only works via same-dir include precedence. Rename one (e.g.
-      `act/act_autograd.h`). Group kernels/ops/nn coherently.
-- [ ] **8. Better function names.** Audit for clarity/consistency (e.g. the
-      `pico_tensor_*` vs `pico_*` split, `pico_nn_linear_*` verbosity).
+      that only works via same-dir include precedence.
+  - [x] Rename activation backward header to `src/act/act_autograd.h`.
+  - [ ] Group kernels/ops/nn coherently.
+- [~] **8. Better function names.** Audit for clarity/consistency.
+  - [x] Rename unary math ops from `pico_tensor_*` to `pico_*`
+        (`pico_sqrt`, `pico_sin`, `pico_log`, etc.).
+  - [ ] Revisit module/loss constructor names once the higher-level API settles.
 
 ## Phase 3 — Developer experience & docs
 
-- [ ] **10. DX pass.** Fewer functions to call. Add a **`pico_tensor_from_data`**
-      (build a tensor from a C array + shape in one call). Add a clean end-to-end
-      **example in the README** using the tidied-up API.
-- [ ] **9. More & better tests.** Fill coverage gaps found during cleanup. Known
-      ones: MSE has no shape-compat check (would OOB — add the guard, then the test);
-      randn `log(0)` edge (u1 can be exactly 0 → -inf/NaN; want u1 ∈ (0,1]); randn
-      multi-dim shape only correct for 1D (halves last dim). Add tests as spec.
-- [ ] **BETTER COMMENTS (added item).** Readable, explain-the-why comments
+- [~] **10. DX pass.** Fewer functions to call.
+  - [x] Add **`pico_tensor_from_data`** to build a tensor from a C array + shape
+        in one call.
+  - [x] Add a clean end-to-end **example in the README** using the tidied-up API.
+- [~] **9. More & better tests.** Fill coverage gaps found during cleanup.
+  - [x] Add matmul scalar-reference tests for `SIMD_AVX` and `SIMD_AVX2`
+        dispatch across clean tiles, tails, and cache-block boundary shapes.
+  - [x] MSE shape-compat guard added, with tests for shape and ndim mismatch.
+  - [x] randn guards the `log(0)` edge and tests generated values are finite.
+  - [x] randn preserves requested shape for odd 1D and multidim tensors.
+- [x] **BETTER COMMENTS (added item).** Readable, explain-the-why comments
       throughout so the whole codebase is understandable on a re-read — not just
       what a line does, but why it's there and what the tricky bits mean.
 

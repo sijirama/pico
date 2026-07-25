@@ -129,21 +129,21 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
     }
 }
 
-static inline void pico_tensor_sqrt_backward(struct PicoTensor* self) {
+static inline void pico_sqrt_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] += self->grad[i] * (1 / (2 * self->data[i]));
     }
 }
 
-static inline void pico_tensor_sin_backward(struct PicoTensor* self) {
+static inline void pico_sin_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] += self->grad[i] * cos(a->data[i]);
     }
 }
 
-static inline void pico_tensor_cos_backward(struct PicoTensor* self) {
+static inline void pico_cos_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] -= self->grad[i] * sin(a->data[i]);
@@ -154,21 +154,21 @@ static inline double sec(double x) {
     return 1.0 / cos(x);
 }
 
-static inline void pico_tensor_tan_backward(struct PicoTensor* self) {
+static inline void pico_tan_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] += self->grad[i] * (powf(sec(a->data[i]), 2));
     }
 }
 
-static inline void pico_tensor_tanh_backward(struct PicoTensor* self) {
+static inline void pico_tanh_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] += self->grad[i] * 1 - (powf(self->data[i], 2));
     }
 }
 
-static inline void pico_tensor_log_backward(struct PicoTensor* self) {
+static inline void pico_log_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {
         a->grad[i] += self->grad[i] * 1 / a->data[i];

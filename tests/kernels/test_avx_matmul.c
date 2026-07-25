@@ -5,11 +5,69 @@
  * mathematically correct C = A@B — a mix incl. edge cases. WIP kernel: may fail.
  * NOTE: no UTEST_MAIN here, test_basic.c owns main + UTEST_STATE.
  */
+#include <math.h>
+
 #include "arena.h"
 #include "global.h"
 #include "ops.h"
 #include "tensor.h"
 #include "utest.h"
+
+static int pico_test_has_avx_matmul(void) {
+    return __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma");
+}
+
+static void fill_matmul_inputs(float* a, float* b, int rows, int k_dim, int columns) {
+    for(int i = 0; i < rows * k_dim; i++) {
+        a[i] = ((float)((i * 13) % 17) - 8.0f) * 0.25f;
+    }
+
+    for(int i = 0; i < k_dim * columns; i++) {
+        b[i] = ((float)((i * 7) % 19) - 9.0f) * 0.125f;
+    }
+}
+
+static int matmul_matches_scalar(SimdLevel simd_level, int rows, int k_dim, int columns) {
+    SimdLevel saved = g_simd_level;
+    pico_init();
+
+    struct Arena* ar = arena_init(1 << 22);
+    if(ar == NULL) {
+        g_simd_level = saved;
+        return 0;
+    }
+    arena_ctx_push(ar);
+
+    int64_t a_shape[] = {rows, k_dim};
+    int64_t b_shape[] = {k_dim, columns};
+    float a_values[rows * k_dim];
+    float b_values[k_dim * columns];
+    fill_matmul_inputs(a_values, b_values, rows, k_dim, columns);
+
+    struct PicoTensor* a = pico_tensor_from_data(NULL, a_shape, 2, a_values);
+    struct PicoTensor* b = pico_tensor_from_data(NULL, b_shape, 2, b_values);
+
+    g_simd_level = SIMD_NONE;
+    struct PicoTensor* expected = pico_matmul(NULL, a, b);
+
+    g_simd_level = simd_level;
+    struct PicoTensor* got = pico_matmul(NULL, a, b);
+
+    int ok = expected != NULL && got != NULL;
+    ok = ok && got->shape[0] == (int64_t)rows;
+    ok = ok && got->shape[1] == (int64_t)columns;
+    ok = ok && got->numel == (int64_t)(rows * columns);
+
+    for(int i = 0; ok && i < got->numel; i++) {
+        ok = fabsf(got->data[i] - expected->data[i]) < 1e-4f;
+    }
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+    g_simd_level = saved;
+
+    return ok;
+}
 
 // basic 2x2 @ 2x2. [[1,2],[3,4]] @ [[5,6],[7,8]] = [[19,22],[43,50]]
 UTEST(avx_matmul, square_2x2) {
@@ -455,4 +513,52 @@ UTEST(avx_matmul, row_dot_col) {
     g_simd_level = saved;
 
     ASSERT_TRUE(o0 == 32.0f);  // 1*4 + 2*5 + 3*6
+}
+
+UTEST(avx_matmul, simd_avx_dispatch_matches_scalar_reference_shapes) {
+    if(!pico_test_has_avx_matmul())
+        return;
+
+    struct MatmulShape {
+        int rows;
+        int k_dim;
+        int columns;
+    };
+
+    struct MatmulShape shapes[] = {
+        {1, 1, 1},      // scalar-only edges
+        {6, 16, 16},    // clean 6x16 path
+        {7, 17, 19},    // row, column, and k tails
+        {13, 31, 33},   // multiple row tiles plus column tails
+        {8, 65, 20},    // crosses the 64-wide k cache block
+        {65, 9, 17},    // crosses the 64-wide row cache block
+    };
+
+    for(int i = 0; i < (int)(sizeof(shapes) / sizeof(shapes[0])); i++) {
+        ASSERT_TRUE(matmul_matches_scalar(SIMD_AVX, shapes[i].rows, shapes[i].k_dim, shapes[i].columns));
+    }
+}
+
+UTEST(avx_matmul, simd_avx2_dispatch_matches_scalar_reference_shapes) {
+    if(!pico_test_has_avx_matmul())
+        return;
+
+    struct MatmulShape {
+        int rows;
+        int k_dim;
+        int columns;
+    };
+
+    struct MatmulShape shapes[] = {
+        {1, 1, 1},      // scalar-only edges
+        {6, 16, 16},    // clean 6x16 path
+        {7, 17, 19},    // row, column, and k tails
+        {13, 31, 33},   // multiple row tiles plus column tails
+        {8, 65, 20},    // crosses the 64-wide k cache block
+        {65, 9, 17},    // crosses the 64-wide row cache block
+    };
+
+    for(int i = 0; i < (int)(sizeof(shapes) / sizeof(shapes[0])); i++) {
+        ASSERT_TRUE(matmul_matches_scalar(SIMD_AVX2, shapes[i].rows, shapes[i].k_dim, shapes[i].columns));
+    }
 }

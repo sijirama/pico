@@ -18,6 +18,9 @@ i'm like sooo fucking happy for this, no one has an idea
 #define MAX_ARENA_STACK 16
 #define PICO_DEFAULT_ARENA_SIZE (32 * 1024 * 1024)
 
+// INFO: arenas are for temporary pico objects. allocations are just pointer bumps,
+// so there is no per-object free. reset the arena when the whole graph / scratch
+// batch is dead, and every tensor allocated from it becomes invalid together.
 struct ArenaBlock {
     struct ArenaBlock* next;
     size_t capacity;        // total size of the block, in bytes
@@ -36,6 +39,9 @@ struct Arena {
 extern thread_local struct Arena* arena_stack[MAX_ARENA_STACK];
 extern thread_local int arena_stack_top;
 
+// INFO: one arena starts with one block. if the block fills up, we chain another
+// block with the same capacity instead of reallocating and moving old pointers.
+// that matters because tensors already handed out must keep their addresses.
 static inline struct Arena* arena_init(size_t bytes) {
     struct Arena* arena = (struct Arena*)malloc(sizeof(struct Arena));
     if(arena == NULL) {
@@ -64,6 +70,8 @@ static inline struct Arena* arena_init(size_t bytes) {
     return arena;
 }
 
+// INFO: this is the actual fast path. no metadata is stored per allocation, so
+// there is nothing to free later except the whole block.
 static inline void* arena_block_alloc(struct ArenaBlock* block, size_t size) {
     size_t used = block->curr - block->bottom;  // how much have we used so far?
 
@@ -76,6 +84,8 @@ static inline void* arena_block_alloc(struct ArenaBlock* block, size_t size) {
     return ptr;
 }
 
+// INFO: "realloc" here means grow the arena with another block, not realloc the
+// existing block. moving an existing block would break every pointer we returned.
 static inline void* arena_block_realloc(struct Arena* arena) {
     // create new block and make it arena->end
 
@@ -103,6 +113,9 @@ static inline void* arena_block_realloc(struct Arena* arena) {
     return block;
 }
 
+// INFO: public allocation entry point. most callers should not call this directly;
+// tensor/op constructors do it after resolving the arena from an explicit arg or
+// the current ctx stack.
 static inline void* arena_alloc(struct Arena* arena, size_t size) {
     void* ptr = arena_block_alloc(arena->end, size);
     if(ptr == NULL) {
@@ -121,6 +134,9 @@ static inline void arena_block_free(struct ArenaBlock* block) {
     free(block);
 }
 
+// INFO: reset keeps the first block and drops every overflow block. this makes the
+// common training loop cheap: build graph, backward, optimizer step, reset temp
+// memory, then reuse the same first block on the next step.
 static inline void arena_reset(struct Arena* arena) {
     struct ArenaBlock* current = arena->begin->next;  // start AFTER the first block
     struct ArenaBlock* nextBlock;
@@ -136,6 +152,9 @@ static inline void arena_reset(struct Arena* arena) {
     arena->end = arena->begin;
 }
 
+// INFO: destroy is the real owner cleanup. after this, every pointer allocated
+// from the arena is dead. persistent tensors are the exception because they never
+// come from arena_alloc.
 static inline void arena_destroy(struct Arena* arena) {
     // go through the entire list and delete each block
 
@@ -153,11 +172,15 @@ static inline void arena_destroy(struct Arena* arena) {
 
 // ============================ arena context
 
+// INFO: ctx is a small thread-local stack so callers can pass NULL into temp
+// allocation APIs. explicit arena args still win, but NULL means "use current".
 static inline void arena_ctx_push(struct Arena* arena) {
     arena_stack_top++;
     arena_stack[arena_stack_top] = arena;
 }
 
+// NOTE: push/pop are intentionally tiny right now. callers have to keep them
+// balanced; later we can add debug checks if this starts biting us.
 static inline void arena_ctx_pop(void) {
     arena_stack_top--;
 }
@@ -169,6 +192,8 @@ static inline struct Arena* arena_ctx_current(void) {
     return arena_stack[arena_stack_top];
 }
 
+// INFO: this is the convention point. every temporary allocation API should call
+// this first: use the arena passed by the caller, or fall back to the ctx arena.
 static inline struct Arena* arena_resolve(struct Arena* arena) {
     if(arena != NULL) {
         return arena;

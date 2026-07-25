@@ -83,6 +83,46 @@ UTEST(loss, mse_wires_graph) {
     arena_destroy(ar);
 }
 
+UTEST(loss, mse_rejects_shape_mismatch) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t pred_shape[] = {4};
+    int64_t actual_shape[] = {2};
+    struct PicoTensor* pred = pico_param(pred_shape, 1);
+    struct PicoTensor* actual = pico_param(actual_shape, 1);
+
+    struct PicoMSELoss mse = {.reduction = MEAN};
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
+
+    ASSERT_TRUE(loss == NULL);
+
+    pico_free(pred);
+    pico_free(actual);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+UTEST(loss, mse_rejects_ndim_mismatch) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t pred_shape[] = {2, 2};
+    int64_t actual_shape[] = {4};
+    struct PicoTensor* pred = pico_param(pred_shape, 2);
+    struct PicoTensor* actual = pico_param(actual_shape, 1);
+
+    struct PicoMSELoss mse = {.reduction = MEAN};
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
+
+    ASSERT_TRUE(loss == NULL);
+
+    pico_free(pred);
+    pico_free(actual);
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
 // d(MSE)/d(pred_i) = (2/N) * (pred_i - actual_i), verified against numeric finite difference
 UTEST(loss, mse_backward_matches_finite_difference) {
     struct Arena* ar = arena_init(4096);

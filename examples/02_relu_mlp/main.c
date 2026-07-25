@@ -3,29 +3,6 @@
 
 #include "pico.h"
 
-static void fill_dataset(struct PicoTensor* x, struct PicoTensor* y) {
-    float xs[] = {
-        0.0f, 0.0f,
-        0.0f, 1.0f,
-        1.0f, 0.0f,
-        1.0f, 1.0f,
-        2.0f, 0.0f,
-        0.0f, 2.0f,
-        2.0f, 1.0f,
-        1.0f, 2.0f,
-    };
-
-    for(int i = 0; i < 16; i++) {
-        x->data[i] = xs[i];
-    }
-
-    for(int row = 0; row < 8; row++) {
-        float a = x->data[row * 2];
-        float b = x->data[row * 2 + 1];
-        y->data[row] = 1.0f + (2.0f * a) + (3.0f * b);
-    }
-}
-
 static void init_layer_weights(struct PicoLinear* l1, struct PicoLinear* l2) {
     float w1[] = {
         0.50f, 0.10f, 0.20f, 0.30f,
@@ -64,19 +41,42 @@ static struct PicoTensor* forward(struct PicoLinear* l1, struct PicoLinear* l2,
 int main(void) {
     pico_init();
 
-    struct Arena* arena = arena_init(1 << 20);
-    if(arena == NULL) {
+    struct Arena* data_arena = arena_init(1 << 16);
+    struct Arena* step_arena = arena_init(1 << 20);
+    if(data_arena == NULL || step_arena == NULL) {
         fprintf(stderr, "failed to create arena\n");
         return 1;
     }
 
-    arena_ctx_push(arena);
-
     int64_t x_shape[] = {8, 2};
     int64_t y_shape[] = {8, 1};
-    struct PicoTensor* x = pico_param(x_shape, 2);
-    struct PicoTensor* y = pico_param(y_shape, 2);
-    fill_dataset(x, y);
+    float x_values[] = {
+        0.0f, 0.0f,
+        0.0f, 1.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f,
+        2.0f, 0.0f,
+        0.0f, 2.0f,
+        2.0f, 1.0f,
+        1.0f, 2.0f,
+    };
+    float y_values[] = {
+        1.0f,
+        4.0f,
+        3.0f,
+        6.0f,
+        5.0f,
+        7.0f,
+        8.0f,
+        9.0f,
+    };
+
+    arena_ctx_push(data_arena);
+    struct PicoTensor* x = pico_tensor_from_data(NULL, x_shape, 2, x_values);
+    struct PicoTensor* y = pico_tensor_from_data(NULL, y_shape, 2, y_values);
+    arena_ctx_pop();
+
+    arena_ctx_push(step_arena);
 
     struct PicoLinear* l1 = pico_nn_linear_init(NULL, 2, 4, true);
     struct PicoLinear* l2 = pico_nn_linear_init(NULL, 4, 1, true);
@@ -103,10 +103,10 @@ int main(void) {
         }
 
         pico_optim_sgd_zero_grad(opt);
-        pico_backward(arena, loss);
+        pico_backward(step_arena, loss);
         pico_optim_sgd_step(opt);
 
-        arena_reset(arena);
+        arena_reset(step_arena);
     }
 
     struct PicoTensor* final_pred = forward(l1, l2, x);
@@ -121,10 +121,10 @@ int main(void) {
     pico_optim_sgd_free(opt);
     pico_nn_linear_free(l1);
     pico_nn_linear_free(l2);
-    pico_free(x);
-    pico_free(y);
     arena_ctx_pop();
-    arena_destroy(arena);
+    arena_destroy(step_arena);
+    arena_destroy(data_arena);
+    pico_shutdown();
 
     return 0;
 }

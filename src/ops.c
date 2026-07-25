@@ -189,13 +189,12 @@ struct PicoTensor* pico_matmul(struct Arena* arena, struct PicoTensor* a, struct
     return out;
 }
 
-// ---- unary element-wise math (forward only) -------------------------------
+// ---- unary element-wise math ----------------------------------------------
 // same shape as `out`, dispatch to the CPU kernel, wire the single parent so the
-// graph stays intact. _backward is NULL for now — the per-op backwards are TODO
-// (sin'=cos, cos'=-sin, tan'=sec^2, tanh'=1-tanh^2, sqrt'=1/(2*sqrt)). unary =>
-// num_parents == 1. these five are near-identical: prime for a later bundle.
+// graph stays intact. unary => num_parents == 1. these are near-identical:
+// prime for a later bundle.
 
-struct PicoTensor* pico_tensor_sqrt(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_sqrt(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for sqrt allocation\n");
@@ -212,12 +211,12 @@ struct PicoTensor* pico_tensor_sqrt(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_sqrt_backward;
+    out->_backward = pico_sqrt_backward;
 
     return out;
 }
 
-struct PicoTensor* pico_tensor_sin(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_sin(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for sin allocation\n");
@@ -234,12 +233,12 @@ struct PicoTensor* pico_tensor_sin(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_sin_backward;
+    out->_backward = pico_sin_backward;
 
     return out;
 }
 
-struct PicoTensor* pico_tensor_cos(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_cos(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for cos allocation\n");
@@ -256,12 +255,12 @@ struct PicoTensor* pico_tensor_cos(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_cos_backward;
+    out->_backward = pico_cos_backward;
 
     return out;
 }
 
-struct PicoTensor* pico_tensor_tan(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_tan(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for tan allocation\n");
@@ -278,12 +277,12 @@ struct PicoTensor* pico_tensor_tan(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_tan_backward;
+    out->_backward = pico_tan_backward;
 
     return out;
 }
 
-struct PicoTensor* pico_tensor_tanh(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_tanh(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for tanh allocation\n");
@@ -300,12 +299,12 @@ struct PicoTensor* pico_tensor_tanh(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_tanh_backward;
+    out->_backward = pico_tanh_backward;
 
     return out;
 }
 
-struct PicoTensor* pico_tensor_log(struct Arena* arena, struct PicoTensor* a) {
+struct PicoTensor* pico_log(struct Arena* arena, struct PicoTensor* a) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for log allocation\n");
@@ -322,7 +321,7 @@ struct PicoTensor* pico_tensor_log(struct Arena* arena, struct PicoTensor* a) {
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
     out->parents[0] = a;
     out->num_parents = 1;
-    out->_backward = pico_tensor_log_backward;
+    out->_backward = pico_log_backward;
 
     return out;
 }

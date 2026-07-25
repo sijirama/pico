@@ -12,9 +12,9 @@ struct PicoTensor* pico_matmul(struct Arena* arena, struct PicoTensor* a, struct
 
 // unary operations ======================================
 
-struct PicoTensor* pico_tensor_sqrt(struct Arena* arena, struct PicoTensor* a);
-struct PicoTensor* pico_tensor_sin(struct Arena* arena, struct PicoTensor* a);
-struct PicoTensor* pico_tensor_cos(struct Arena* arena, struct PicoTensor* a);
-struct PicoTensor* pico_tensor_tan(struct Arena* arena, struct PicoTensor* a);
-struct PicoTensor* pico_tensor_tanh(struct Arena* arena, struct PicoTensor* a);
-struct PicoTensor* pico_tensor_log(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_sqrt(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_sin(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_cos(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_tan(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_tanh(struct Arena* arena, struct PicoTensor* a);
+struct PicoTensor* pico_log(struct Arena* arena, struct PicoTensor* a);
