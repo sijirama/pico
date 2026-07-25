@@ -1,0 +1,87 @@
+Script started on 2026-07-25 21:57:51+01:00 [<not executed on terminal>]
+make: Entering directory '/home/sijirama/Desktop/me/coder/pico/bench'
+>> building matmul_focused_openblas  (-O2, OpenBLAS)
+[01m[K../src/tensor.c:[m[K In function ‘[01m[Kgenerate_random_floats_fast[m[K’:
+[01m[K../src/tensor.c:305:20:[m[K [01;35m[Kwarning: [m[Kdereferencing type-punned pointer will break strict-aliasing rules [[01;35m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wstrict-aliasing-Wstrict-aliasing]8;;[m[K]
+  305 |         float f = *[01;35m[K(float*)&bits[m[K;
+      |                    [01;35m[K^~~~~~~~~~~~~[m[K
+[01m[K../src/tensor.c:[m[K In function ‘[01m[Kpico_backward[m[K’:
+[01m[K../src/tensor.c:30:10:[m[K [01;35m[Kwarning: [m[K‘[01m[K*(struct PicoTensor **)malloc (200)[m[K’ may be used uninitialized [[01;35m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wmaybe-uninitialized-Wmaybe-uninitialized]8;;[m[K]
+   30 |     [01;35m[Kcurr = (struct PicoTensor*)vector.data[0][m[K;
+      |     [01;35m[K~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[m[K
+>> running  matmul_focused_openblas
+
+
+  ════════════════════════════════════════════════════════════
+
+  ████  ███  ███   ███    
+  █░░░█  █░░█ ░░░ █ ░░█   
+  ████░░ █░░█░ ░░░█░ ░█░  
+  █░░░░ ░█░░█░░   █░░ █░░ 
+  █░░░░░███░ ███   ███ ░░ 
+   ░░    ░░░  ░░░   ░░░ ░ 
+    ░     ░░░  ░░░   ░░░  
+
+  ════════════════════════════════════════════════════════════
+
+Initialized the global thread pool
+Initialized the global arena allocator (32 MiB)
+
+  focused matmul benchmark   (warmup=2, samples=7, median shown, -O2)
+  env: OMP_NUM_THREADS=4 OMP_PROC_BIND=(unset) OMP_PLACES=(unset)
+  openmp: max_threads=4 num_procs=12 places=0
+  affinity: 0 1 2 3 4 5 6 7 8 9 10 11
+  BLAS provider: OpenBLAS
+  GFLOP/s columns are min / median / max. Correctness diff is max abs vs reference.
+
+  256^3  (256x256 * 256x256)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family         147.40     148.72     150.45  0.000e+00
+  16x-family         146.22     150.73     151.94  0.000e+00
+  pico-avx           143.36     151.56     152.47  0.000e+00
+  OpenBLAS           158.23     165.89     167.32  0.000e+00 ref
+
+  512^3  (512x512 * 512x512)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family         146.95     162.60     168.38  0.000e+00
+  16x-family         147.28     151.91     163.59  0.000e+00
+  pico-avx           147.95     155.75     166.78  0.000e+00
+  OpenBLAS           154.97     173.54     174.57  0.000e+00 ref
+
+  768^3  (768x768 * 768x768)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family         119.33     129.65     138.69  0.000e+00
+  16x-family          98.27     135.84     142.17  0.000e+00
+  pico-avx           106.34     134.56     139.55  0.000e+00
+  OpenBLAS           141.85     148.85     158.40  0.000e+00 ref
+
+  1024^3  (1024x1024 * 1024x1024)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          71.00      72.20      73.22  0.000e+00
+  16x-family          91.60     108.52     116.91  0.000e+00
+  pico-avx           103.56     105.41     129.49  0.000e+00
+  OpenBLAS           152.94     153.96     176.88  0.000e+00 ref
+
+  wide 512x1024x2048  (512x1024 * 1024x2048)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          29.79      68.12      69.56  0.000e+00
+  16x-family          42.13     109.41     118.10  0.000e+00
+  pico-avx            44.23      89.62     149.42  0.000e+00
+  OpenBLAS           116.41     129.52     169.03  0.000e+00 ref
+
+  tall 2048x1024x512  (2048x1024 * 1024x512)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          32.70      45.01      59.37  0.000e+00
+  16x-family          38.53      63.66      79.94  0.000e+00
+  pico-avx            50.81      59.08      76.99  0.000e+00
+  OpenBLAS            51.26      67.61      84.84  0.000e+00 ref
+
+make: Leaving directory '/home/sijirama/Desktop/me/coder/pico/bench'
+
+Script done on 2026-07-25 21:57:58+01:00 [COMMAND_EXIT_CODE="0"]
