@@ -1,0 +1,83 @@
+Script started on 2026-07-25 16:58:21+01:00 [<not executed on terminal>]
+make: Entering directory '/home/sijirama/Desktop/me/coder/pico/bench'
+>> building matmul_focused_openblas  (-O2, OpenBLAS)
+[01m[K../src/tensor.c:[m[K In function ‘[01m[Kgenerate_random_floats_fast[m[K’:
+[01m[K../src/tensor.c:305:20:[m[K [01;35m[Kwarning: [m[Kdereferencing type-punned pointer will break strict-aliasing rules [[01;35m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wstrict-aliasing-Wstrict-aliasing]8;;[m[K]
+  305 |         float f = *[01;35m[K(float*)&bits[m[K;
+      |                    [01;35m[K^~~~~~~~~~~~~[m[K
+>> running  matmul_focused_openblas
+
+
+  ════════════════════════════════════════════════════════════
+
+  ████  ███  ███   ███    
+  █░░░█  █░░█ ░░░ █ ░░█   
+  ████░░ █░░█░ ░░░█░ ░█░  
+  █░░░░ ░█░░█░░   █░░ █░░ 
+  █░░░░░███░ ███   ███ ░░ 
+   ░░    ░░░  ░░░   ░░░ ░ 
+    ░     ░░░  ░░░   ░░░  
+
+  ════════════════════════════════════════════════════════════
+
+Initialized the global thread pool
+Initialized the global arena allocator (32 MiB)
+
+  focused matmul benchmark   (warmup=2, samples=7, median shown, -O2)
+  env: OMP_NUM_THREADS=8 OMP_PROC_BIND=(unset) OMP_PLACES=(unset)
+  openmp: max_threads=8 num_procs=12 places=0
+  affinity: 0 1 2 3 4 5 6 7 8 9 10 11
+  BLAS provider: OpenBLAS
+  GFLOP/s columns are min / median / max. Correctness diff is max abs vs reference.
+
+  256^3  (256x256 * 256x256)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          62.02      92.19     144.40  0.000e+00
+  16x-family          56.04      74.00     115.29  0.000e+00
+  pico-avx            70.51      74.84      89.98  0.000e+00
+  OpenBLAS           180.28     257.91     263.29  0.000e+00 ref
+
+  512^3  (512x512 * 512x512)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          79.71     114.36     125.05  0.000e+00
+  16x-family          67.71      79.12      98.36  0.000e+00
+  pico-avx            69.34      80.83     113.93  0.000e+00
+  OpenBLAS           226.83     240.83     282.62  0.000e+00 ref
+
+  768^3  (768x768 * 768x768)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          70.40      77.86     106.54  0.000e+00
+  16x-family          73.07      87.32     127.24  0.000e+00
+  pico-avx            72.15      77.75      98.42  0.000e+00
+  OpenBLAS           172.56     223.48     248.89  0.000e+00 ref
+
+  1024^3  (1024x1024 * 1024x1024)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          45.69      50.63      86.58  0.000e+00
+  16x-family          62.55      90.46     148.25  0.000e+00
+  pico-avx            64.25      77.97     162.95  0.000e+00
+  OpenBLAS           220.82     234.52     252.56  0.000e+00 ref
+
+  wide 512x1024x2048  (512x1024 * 1024x2048)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          48.44      53.62      67.61  0.000e+00
+  16x-family          71.41      76.77     117.29  0.000e+00
+  pico-avx            65.42      76.72     108.13  0.000e+00
+  OpenBLAS           214.84     222.21     246.13  0.000e+00 ref
+
+  tall 2048x1024x512  (2048x1024 * 1024x512)
+  strategy              min     median        max       diff
+  -------------------------------------------------------------
+  8x8-family          68.36      79.17     115.47  0.000e+00
+  16x-family          86.68     101.76     152.26  0.000e+00
+  pico-avx            74.85     101.87     185.91  0.000e+00
+  OpenBLAS           204.45     215.24     248.46  0.000e+00 ref
+
+make: Leaving directory '/home/sijirama/Desktop/me/coder/pico/bench'
+
+Script done on 2026-07-25 16:58:27+01:00 [COMMAND_EXIT_CODE="0"]
