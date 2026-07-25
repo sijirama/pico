@@ -7,6 +7,7 @@
 
 static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     switch(g_simd_level) {
+        case SIMD_AVX2:
         case SIMD_AVX:
             pico_matmul_cpu_avx(a, b, out);
             break;

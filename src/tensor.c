@@ -1,5 +1,6 @@
 #include "tensor.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,8 @@
 
 void postorder(struct PicoTensor* root, struct PicoVec* vector, struct PicoVec* visited);
 
+// INFO: backward walks the graph from the output back to leaves. the temporary
+// vectors are just traversal scratch, so they stay outside tensor ownership rules.
 void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
     // build our dependency graph with dfs
     struct PicoVec vector, visited;
@@ -41,6 +44,8 @@ void pico_backward(struct Arena* arena, struct PicoTensor* entry) {
     pico_vec_free(&visited);
 }
 
+// INFO: params are heap-backed because optimizers keep pointers to them across
+// arena resets. weights, biases, and long-lived input data should use this path.
 struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim) {
     struct PicoTensor* tensor = (struct PicoTensor*)calloc(1, sizeof(struct PicoTensor));
     if(tensor == NULL) {
@@ -83,6 +88,8 @@ struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim) {
     return tensor;
 }
 
+// INFO: temp tensors are arena-backed. this is what ops use for outputs and
+// intermediate graph nodes, so a training loop can drop them all with one reset.
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
@@ -139,6 +146,8 @@ struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8
     return tensor;
 }
 
+// INFO: pico_free only owns persistent tensors. arena tensors are ignored here
+// because freeing them individually would corrupt the bump allocator model.
 void pico_free(struct PicoTensor* tensor) {
     // if the pointer is already NULL, do nothing safely
     if(tensor == NULL) {
@@ -193,6 +202,30 @@ struct PicoTensor* pico_tensor_from_scalar(struct Arena* arena, float value) {
     return tensor;
 }
 
+// INFO: this is a copy constructor for temp data. it is intentionally not a view
+// into the caller's array, because pico cannot know how long that pointer lives.
+struct PicoTensor* pico_tensor_from_data(struct Arena* arena, int64_t* shape, uint8_t ndim, const float* data) {
+    arena = arena_resolve(arena);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for tensor data allocation\n");
+        return NULL;
+    }
+
+    if(data == NULL) {
+        fprintf(stderr, "[Pico] Error: pico_tensor_from_data received NULL data\n");
+        return NULL;
+    }
+
+    struct PicoTensor* tensor = pico_create_tensor(arena, shape, ndim);
+    if(tensor == NULL) {
+        return NULL;
+    }
+
+    memcpy(tensor->data, data, tensor->numel * sizeof(float));
+
+    return tensor;
+}
+
 // recursive helper: walk one dim, indent nested brackets, use strides so a
 // non-contiguous / broadcasted view still prints in logical shape order.
 static void pico_print_recursive(struct PicoTensor* t, int dim, int64_t offset) {
@@ -200,7 +233,8 @@ static void pico_print_recursive(struct PicoTensor* t, int dim, int64_t offset) 
         printf("[");
         for(int64_t i = 0; i < t->shape[dim]; i++) {
             printf("%g", t->data[offset + i * t->strides[dim]]);
-            if(i != t->shape[dim] - 1) printf(", ");
+            if(i != t->shape[dim] - 1)
+                printf(", ");
         }
         printf("]");
         return;
@@ -208,7 +242,8 @@ static void pico_print_recursive(struct PicoTensor* t, int dim, int64_t offset) 
     printf("[");
     for(int64_t i = 0; i < t->shape[dim]; i++) {
         pico_print_recursive(t, dim + 1, offset + i * t->strides[dim]);
-        if(i != t->shape[dim] - 1) printf(",\n ");
+        if(i != t->shape[dim] - 1)
+            printf(",\n ");
     }
     printf("]");
 }
@@ -221,7 +256,8 @@ void pico_tensor_print(struct PicoTensor* t) {
     printf("PicoTensor(shape=[");
     for(int i = 0; i < t->ndim; i++) {
         printf("%ld", (long)t->shape[i]);
-        if(i != t->ndim - 1) printf(", ");
+        if(i != t->ndim - 1)
+            printf(", ");
     }
     printf("], numel=%ld)\n", (long)t->numel);
 
@@ -271,6 +307,8 @@ void generate_random_floats_fast(float* arr, size_t size) {
     }
 }
 
+// INFO: rand returns a temp tensor. pass an explicit arena for short-lived random
+// scratch, or NULL after pico_init if the default arena is enough.
 struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) {
     struct PicoTensor* tensor = pico_create_tensor(arena, shape, ndim);
     // dispatch properly into backends
@@ -282,9 +320,7 @@ struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim) 
 
 struct PicoTensor* pico_cat(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b, int dim) {
     if(a->backend != b->backend) {
-        fprintf(
-            stderr,
-            "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
+        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
         return NULL;
     }
     if(a->ndim != b->ndim) {
@@ -351,6 +387,10 @@ struct PicoTensor* pico_cat(struct Arena* arena, struct PicoTensor* a, struct Pi
     return out;
 }
 
+// INFO: Box-Muller gives us two normal samples from two uniform samples. generate
+// by flat numel, then write into a tensor with the original requested shape so
+// odd sizes and multidim shapes don't come back with weird metadata.
+// WARN: this code was written with ai lmao
 struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim) {
     arena = arena_resolve(arena);
     if(arena == NULL) {
@@ -358,23 +398,29 @@ struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim)
         return NULL;
     }
 
-    int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
-    memcpy(res_shape, shape, sizeof(int64_t) * ndim);
-    res_shape[ndim - 1] = res_shape[ndim - 1] / 2;
+    struct PicoTensor* tensor = pico_create_tensor(arena, shape, ndim);
+    if(tensor == NULL) {
+        return NULL;
+    }
 
-    struct PicoTensor* u1 = pico_rand(arena, res_shape, ndim);
-    struct PicoTensor* u2 = pico_rand(arena, res_shape, ndim);
+    for(int64_t i = 0; i < tensor->numel; i += 2) {
+        float u1 = 0.0f;
+        generate_random_floats_fast(&u1, 1);
+        if(u1 == 0.0f) {
+            u1 = 1.0f / 16777216.0f;
+        }
 
-    struct PicoTensor* mag =
-        pico_tensor_sqrt(arena, pico_mul(arena, pico_tensor_from_scalar(arena, -2.0), pico_tensor_log(arena, u1)));
-    struct PicoTensor* angle =
-        pico_mul(arena, pico_tensor_from_scalar(arena, 2.0),
-                 pico_mul(arena, pico_tensor_from_scalar(arena, PI_F), u2));
+        float u2 = 0.0f;
+        generate_random_floats_fast(&u2, 1);
 
-    struct PicoTensor* z0 = pico_mul(arena, mag, pico_tensor_cos(arena, angle));
-    struct PicoTensor* z1 = pico_mul(arena, mag, pico_tensor_sin(arena, angle));
+        float mag = sqrtf(-2.0f * logf(u1));
+        float angle = 2.0f * PI_F * u2;
 
-    struct PicoTensor* tensor = pico_cat(arena, z0, z1, 0);
+        tensor->data[i] = mag * cosf(angle);
+        if(i + 1 < tensor->numel) {
+            tensor->data[i + 1] = mag * sinf(angle);
+        }
+    }
 
     return tensor;
 }

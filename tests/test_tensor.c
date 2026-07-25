@@ -182,6 +182,60 @@ UTEST(pico_tensor_from_scalar, broadcasts_through_mul) {
 }
 
 // ===================================================================
+//  pico_tensor_from_data
+// ===================================================================
+
+UTEST(pico_tensor_from_data, copies_values_and_metadata) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t shape[] = {2, 3};
+    float data[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    struct PicoTensor* t = pico_tensor_from_data(NULL, shape, 2, data);
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->ndim, 2);
+    ASSERT_EQ(t->numel, 6);
+    ASSERT_EQ(t->shape[0], (int64_t)2);
+    ASSERT_EQ(t->shape[1], (int64_t)3);
+    ASSERT_EQ(t->strides[0], (int64_t)3);
+    ASSERT_EQ(t->strides[1], (int64_t)1);
+    ASSERT_TRUE(t->data[0] == 1.0f);
+    ASSERT_TRUE(t->data[5] == 6.0f);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+UTEST(pico_tensor_from_data, owns_a_copy_of_input_data) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t shape[] = {3};
+    float data[] = {1.0f, 2.0f, 3.0f};
+
+    struct PicoTensor* t = pico_tensor_from_data(NULL, shape, 1, data);
+    ASSERT_TRUE(t != NULL);
+    data[0] = 99.0f;
+    ASSERT_TRUE(t->data[0] == 1.0f);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+UTEST(pico_tensor_from_data, rejects_null_data) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t shape[] = {3};
+    struct PicoTensor* t = pico_tensor_from_data(NULL, shape, 1, NULL);
+    ASSERT_TRUE(t == NULL);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+// ===================================================================
 //  pico_rand / pico_randn  (these describe the TARGET behavior)
 // ===================================================================
 
@@ -227,9 +281,8 @@ UTEST(pico_rand, uniform_unit_range) {
     arena_destroy(ar);
 }
 
-// TARGET (currently FAILS — randn is still a uniform stub): a standard-normal
-// generator must produce NEGATIVE values. uniform [0,1) never does. When randn
-// is real (Box-Muller / etc.), ~half of a big sample is < 0.
+// randn should produce negative values. uniform [0,1) never does, while a real
+// normal distribution puts roughly half the sample below 0.
 UTEST(pico_randn, produces_negatives) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
@@ -245,13 +298,10 @@ UTEST(pico_randn, produces_negatives) {
         }
     }
 
-    // tear down BEFORE asserting: this fails on purpose (randn is a uniform stub),
-    // and a failed ASSERT returns early — asserting first would skip the pop and
-    // leave this arena on the ctx stack, breaking later arena_ctx tests.
     arena_ctx_pop();
     arena_destroy(ar);
 
-    ASSERT_TRUE(found_negative);  // FAILS until randn is a real normal distribution
+    ASSERT_TRUE(found_negative);
 }
 
 // the REAL spec: randn is a STANDARD normal -> over a big sample, mean ~ 0 and
@@ -280,7 +330,57 @@ UTEST(pico_randn, is_standard_normal) {
     arena_ctx_pop();
     arena_destroy(ar);
 
-    ASSERT_EQ(n, 10000);                          // cat(z0,z1) reassembles the full size
+    ASSERT_EQ(n, 10000);
     ASSERT_TRUE(mean > -0.1 && mean < 0.1);       // centered on 0
     ASSERT_TRUE(stddev > 0.85 && stddev < 1.15);  // unit variance
+}
+
+UTEST(pico_randn, keeps_odd_1d_shape) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {5};
+    struct PicoTensor* t = pico_randn(ar, s, 1);
+
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->ndim, 1);
+    ASSERT_EQ(t->numel, 5);
+    ASSERT_EQ(t->shape[0], (int64_t)5);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+UTEST(pico_randn, keeps_multidim_shape) {
+    struct Arena* ar = arena_init(4096);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {2, 4};
+    struct PicoTensor* t = pico_randn(ar, s, 2);
+
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->ndim, 2);
+    ASSERT_EQ(t->numel, 8);
+    ASSERT_EQ(t->shape[0], (int64_t)2);
+    ASSERT_EQ(t->shape[1], (int64_t)4);
+    ASSERT_EQ(t->strides[0], (int64_t)4);
+    ASSERT_EQ(t->strides[1], (int64_t)1);
+
+    arena_ctx_pop();
+    arena_destroy(ar);
+}
+
+UTEST(pico_randn, values_are_finite) {
+    struct Arena* ar = arena_init(1 << 16);
+    arena_ctx_push(ar);
+
+    int64_t s[] = {1000};
+    struct PicoTensor* t = pico_randn(ar, s, 1);
+
+    for(int64_t i = 0; i < t->numel; i++) {
+        ASSERT_TRUE(isfinite(t->data[i]));
+    }
+
+    arena_ctx_pop();
+    arena_destroy(ar);
 }

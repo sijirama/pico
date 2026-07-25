@@ -26,12 +26,10 @@ struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductio
 
 struct PicoTensor* pico_mse_loss(struct Arena* arena, struct PicoMSELoss* mse, struct PicoTensor* predictions,
                                  struct PicoTensor* actuals) {
-    // if(predictions->shape != actuals->shape) {
-    //     fprintf(stderr, "[Pico] Error: PicoTensors are not compatible!\n");
-    //     return NULL;
-    // }
-    // TODO:
-    // WARN:: loop through shape and compare then check ndiim too
+    if(!pico_tensor_shapes_are_equal(predictions, actuals)) {
+        fprintf(stderr, "[Pico] Error: MSE predictions and actuals must have the same shape\n");
+        return NULL;
+    }
 
     if(predictions->backend != actuals->backend) {
         fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");

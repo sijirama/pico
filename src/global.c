@@ -28,6 +28,9 @@ static GpuBackend detect_gpu(void) {
     return GPU_CUDA;
 }
 
+// INFO: pico_init owns the default process-level services. right now that means
+// simd/backend detection, the global tpool, and a default arena so tiny examples
+// can pass NULL without writing setup code.
 void pico_init(void) {
     if(g_pico_initialized)
         return;
@@ -71,6 +74,9 @@ void pico_init(void) {
 
     global_arena = arena_init(PICO_DEFAULT_ARENA_SIZE);
     if(global_arena != NULL) {
+        // NOTE: only push the default arena if the current thread has no arena.
+        // if the caller already pushed one, NULL should keep meaning their arena,
+        // not silently switch to pico's global arena.
         if(arena_ctx_current() == NULL) {
             arena_ctx_push(global_arena);
             g_global_arena_pushed = 1;
@@ -82,6 +88,8 @@ void pico_init(void) {
     }
 }
 
+// INFO: shutdown mirrors init. the default arena is popped only if pico_init was
+// the one that pushed it, which keeps user-managed ctx stacks balanced.
 void pico_shutdown(void) {
     if(global_arena != NULL) {
         if(g_global_arena_pushed && arena_ctx_current() == global_arena) {

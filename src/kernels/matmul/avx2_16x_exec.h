@@ -15,6 +15,11 @@
 #define MATMUL_CACHE_BLOCK_SIZE 64
 #endif
 
+// INFO: this file is the 16-column matmul family. the hot path tries to hit
+// 6x16 tiles first, then smaller row/column tails. out is updated with += because
+// cache blocking splits k into chunks, so each kk block only contributes part of
+// the final dot product.
+
 // INFO: this is a side ways prefetch for b panels. when the j loop is on
 //  b[0..k_dim][j..j+15], the next j tile will use b[0..k_dim][j+16..j+31].
 //  so before we call the 6x16 kernel for the current tile, we touch a few rows
@@ -53,6 +58,9 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
     int k_dim) {
     int block = MATMUL_CACHE_BLOCK_SIZE;
 
+    // INFO: ii/jj/kk are the cache blocks. inside each block, the microkernels
+    // still work in their natural shapes, but they only walk a smaller slice of
+    // rows, columns, and k before moving on.
     for(int ii = row_start; ii < row_end; ii += block) {
         int rows = MIN(ii + block, row_end);
 
@@ -64,6 +72,8 @@ __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmu
                 int i = ii;
                 int roll = 0;
 
+                // INFO: always try the biggest row tile first. after 6-row chunks
+                // are done, the same block falls through to 4, then 2, then 1.
                 roll = 6;
                 for(; i + roll <= rows; i += roll) {
                     int j = jj;
@@ -145,12 +155,14 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx_16x(s
     int k_dim = a->shape[1];
     int roll = 6;
 
-    // NOTE: first row not covered by the parallel 6-row tiles.
+    // NOTE: first row after the parallel 6-row tiles.
     // Example: rows=20, roll=6 -> parallel rows [0..17], tail starts at row 18.
     int tail_start = (rows / roll) * roll;
     long long flops = 2LL * (long long)rows * (long long)columns * (long long)k_dim;
 
     if(flops >= MATMUL_OPENMP_MIN_FLOPS) {
+        // INFO: only full 6-row tiles go parallel. the tail stays serial so two
+        // threads never write the same output rows.
         #pragma omp parallel for schedule(static)
         for(int i = 0; i <= rows - roll; i += roll) {
             pico_matmul_cpu_avx_16x_exec(a, b, out, i, i + roll, columns, k_dim);
