@@ -165,7 +165,7 @@ int main(void) {
     struct strat strats[] = {
         {"8x8-family", pico_matmul_cpu_avx_8x8},
         {"16x-family", pico_matmul_cpu_avx_16x},
-        {"adaptive", pico_matmul_cpu_avx},
+        {"pico-avx", pico_matmul_cpu_avx},
     };
     int n_strats = (int)(sizeof(strats) / sizeof(strats[0]));
 
