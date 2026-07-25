@@ -26,7 +26,7 @@ UTEST(unary, sqrt_forward) {
     x->data[2] = 9.0f;
     x->data[3] = 16.0f;
 
-    struct PicoTensor* out = pico_tensor_sqrt(x);
+    struct PicoTensor* out = pico_tensor_sqrt(NULL, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_TRUE(out->data[0] == 0.0f);
     ASSERT_TRUE(out->data[1] == 2.0f);
@@ -48,7 +48,7 @@ UTEST(unary, sin_forward) {
     x->data[0] = 0.0f;
     x->data[1] = PI_F / 2.0f;
 
-    struct PicoTensor* out = pico_tensor_sin(x);
+    struct PicoTensor* out = pico_tensor_sin(NULL, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
@@ -67,7 +67,7 @@ UTEST(unary, cos_forward) {
     x->data[0] = 0.0f;
     x->data[1] = PI_F;
 
-    struct PicoTensor* out = pico_tensor_cos(x);
+    struct PicoTensor* out = pico_tensor_cos(NULL, x);
     ASSERT_TRUE(NEAR(out->data[0], 1.0f));
     ASSERT_TRUE(NEAR(out->data[1], -1.0f));
 
@@ -86,7 +86,7 @@ UTEST(unary, tan_forward) {
     x->data[0] = 0.0f;
     x->data[1] = PI_F / 4.0f;
 
-    struct PicoTensor* out = pico_tensor_tan(x);
+    struct PicoTensor* out = pico_tensor_tan(NULL, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
@@ -105,7 +105,7 @@ UTEST(unary, tanh_forward) {
     x->data[0] = 0.0f;
     x->data[1] = 20.0f;
 
-    struct PicoTensor* out = pico_tensor_tanh(x);
+    struct PicoTensor* out = pico_tensor_tanh(NULL, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
@@ -124,7 +124,7 @@ UTEST(unary, log_forward) {
     x->data[0] = 1.0f;
     x->data[1] = 2.71828182845904523536f;  // e
 
-    struct PicoTensor* out = pico_tensor_log(x);
+    struct PicoTensor* out = pico_tensor_log(NULL, x);
     ASSERT_TRUE(out->data[0] == 0.0f);
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
@@ -140,7 +140,7 @@ UTEST(unary, preserves_shape_and_wires_parent) {
 
     int64_t s[] = {2, 3};
     struct PicoTensor* x = pico_param(s, 2);
-    struct PicoTensor* out = pico_tensor_sin(x);
+    struct PicoTensor* out = pico_tensor_sin(NULL, x);
 
     ASSERT_EQ(out->ndim, 2);
     ASSERT_EQ(out->numel, 6);
@@ -170,7 +170,7 @@ UTEST(unary_backward, sqrt) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = 4.0f;
 
-    struct PicoTensor* out = pico_tensor_sqrt(x);
+    struct PicoTensor* out = pico_tensor_sqrt(NULL, x);
     out->grad[0] = 2.0f;  // upstream
     out->_backward(out);
     float gx = x->grad[0];
@@ -193,7 +193,7 @@ UTEST(unary_backward, sin) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = PI_F;
 
-    struct PicoTensor* out = pico_tensor_sin(x);
+    struct PicoTensor* out = pico_tensor_sin(NULL, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
@@ -214,7 +214,7 @@ UTEST(unary_backward, cos) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = PI_F / 2.0f;
 
-    struct PicoTensor* out = pico_tensor_cos(x);
+    struct PicoTensor* out = pico_tensor_cos(NULL, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
@@ -235,7 +235,7 @@ UTEST(unary_backward, tan) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = 0.0f;
 
-    struct PicoTensor* out = pico_tensor_tan(x);
+    struct PicoTensor* out = pico_tensor_tan(NULL, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
@@ -256,7 +256,7 @@ UTEST(unary_backward, tanh) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = 0.0f;
 
-    struct PicoTensor* out = pico_tensor_tanh(x);
+    struct PicoTensor* out = pico_tensor_tanh(NULL, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
@@ -277,7 +277,7 @@ UTEST(unary_backward, log) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = 2.0f;
 
-    struct PicoTensor* out = pico_tensor_log(x);
+    struct PicoTensor* out = pico_tensor_log(NULL, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];

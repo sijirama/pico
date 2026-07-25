@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "arena.h"
 #include "tpool.h"
 
 typedef enum { SIMD_NONE, SIMD_SSE, SIMD_AVX, SIMD_AVX2, SIMD_AVX512 } SimdLevel;
@@ -12,6 +13,7 @@ extern GpuBackend g_gpu_backend;
 extern int g_pico_initialized;
 
 extern struct PicoTPool* global_tp;
+extern struct Arena* global_arena;
 
 extern uint32_t x_state;
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11

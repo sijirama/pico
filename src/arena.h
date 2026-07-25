@@ -16,6 +16,7 @@ i'm like sooo fucking happy for this, no one has an idea
 #include <threads.h>
 
 #define MAX_ARENA_STACK 16
+#define PICO_DEFAULT_ARENA_SIZE (32 * 1024 * 1024)
 
 struct ArenaBlock {
     struct ArenaBlock* next;
@@ -166,4 +167,11 @@ static inline struct Arena* arena_ctx_current(void) {
         return NULL;
     }
     return arena_stack[arena_stack_top];
+}
+
+static inline struct Arena* arena_resolve(struct Arena* arena) {
+    if(arena != NULL) {
+        return arena;
+    }
+    return arena_ctx_current();
 }

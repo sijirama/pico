@@ -13,12 +13,18 @@ void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
                        struct PicoTensor* actuals);
 
 struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductionType reduction) {
+    arena = arena_resolve(arena);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for mse loss allocation\n");
+        return NULL;
+    }
+
     struct PicoMSELoss* mse = (struct PicoMSELoss*)arena_alloc(arena, sizeof(struct PicoMSELoss));
     mse->reduction = reduction;
     return mse;
 }
 
-struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* predictions,
+struct PicoTensor* pico_mse_loss(struct Arena* arena, struct PicoMSELoss* mse, struct PicoTensor* predictions,
                                  struct PicoTensor* actuals) {
     // if(predictions->shape != actuals->shape) {
     //     fprintf(stderr, "[Pico] Error: PicoTensors are not compatible!\n");
@@ -32,9 +38,9 @@ struct PicoTensor* pico_mse_loss(struct PicoMSELoss* mse, struct PicoTensor* pre
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for mse loss output allocation\n");
         return NULL;
     }
     struct PicoTensor* out = pico_create_tensor(arena, predictions->shape, predictions->ndim);

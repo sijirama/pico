@@ -17,7 +17,7 @@ UTEST(autograd, add_wires_graph) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
 
     ASSERT_EQ(c->num_parents, 2);
     ASSERT_TRUE(c->parents[0] == a);
@@ -41,7 +41,7 @@ UTEST(autograd, add_backward_flows_to_parents) {
     struct PicoTensor* b = pico_param(s, 1);
     b->data[0] = 3.0f;
 
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
     ASSERT_TRUE(c->data[0] == 5.0f);  // forward sanity
 
     c->grad[0] = 1.0f;  // upstream gradient
@@ -64,7 +64,7 @@ UTEST(autograd, add_backward_accumulates) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
 
     c->grad[0] = 1.0f;
     c->_backward(c);
@@ -88,7 +88,7 @@ UTEST(autograd, add_backward_multi_element) {
     int64_t s[] = {3};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
 
     for(int i = 0; i < 3; i++)
         c->grad[i] = 1.0f;
@@ -115,7 +115,7 @@ UTEST(autograd, sub_wires_graph) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_sub(a, b);
+    struct PicoTensor* c = pico_sub(NULL, a, b);
 
     ASSERT_EQ(c->num_parents, 2);
     ASSERT_TRUE(c->parents[0] == a);
@@ -139,7 +139,7 @@ UTEST(autograd, sub_backward_signs) {
     struct PicoTensor* b = pico_param(s, 1);
     b->data[0] = 3.0f;
 
-    struct PicoTensor* c = pico_sub(a, b);
+    struct PicoTensor* c = pico_sub(NULL, a, b);
     ASSERT_TRUE(c->data[0] == 2.0f);  // forward sanity: 5 - 3
 
     c->grad[0] = 1.0f;  // upstream gradient
@@ -162,7 +162,7 @@ UTEST(autograd, sub_backward_accumulates) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_sub(a, b);
+    struct PicoTensor* c = pico_sub(NULL, a, b);
 
     c->grad[0] = 1.0f;
     c->_backward(c);
@@ -185,7 +185,7 @@ UTEST(autograd, sub_backward_multi_element) {
     int64_t s[] = {3};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_sub(a, b);
+    struct PicoTensor* c = pico_sub(NULL, a, b);
 
     for(int i = 0; i < 3; i++)
         c->grad[i] = 1.0f;
@@ -216,7 +216,7 @@ UTEST(autograd, backward_simple) {
     struct PicoTensor* b = pico_param(s, 1);
     b->data[0] = 3.0f;
 
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
     pico_backward(ar, c);
 
     ASSERT_TRUE(a->grad[0] == 1.0f);
@@ -238,8 +238,8 @@ UTEST(autograd, backward_chain_reuses_leaf) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_add(a, b);
-    struct PicoTensor* d = pico_add(c, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
+    struct PicoTensor* d = pico_add(NULL, c, b);
 
     pico_backward(ar, d);
 
@@ -263,8 +263,8 @@ UTEST(autograd, backward_shared_internal_node) {
     int64_t s[] = {1};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_add(a, b);
-    struct PicoTensor* out = pico_add(c, c);
+    struct PicoTensor* c = pico_add(NULL, a, b);
+    struct PicoTensor* out = pico_add(NULL, c, c);
 
     pico_backward(ar, out);
 
@@ -297,7 +297,7 @@ UTEST(matmul, forward_2x3_times_3x2) {
     float bv[] = {7, 8, 9, 10, 11, 12};
     for(int i = 0; i < 6; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_matmul(a, b);
+    struct PicoTensor* c = pico_matmul(NULL, a, b);
 
     ASSERT_TRUE(c->shape[0] == 2);
     ASSERT_TRUE(c->shape[1] == 2);
@@ -328,7 +328,7 @@ UTEST(matmul, forward_square) {
     float bv[] = {5, 6, 7, 8};
     for(int i = 0; i < 4; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_matmul(a, b);
+    struct PicoTensor* c = pico_matmul(NULL, a, b);
 
     ASSERT_TRUE(c->data[0] == 19.0f);
     ASSERT_TRUE(c->data[1] == 22.0f);
@@ -358,7 +358,7 @@ UTEST(matmul, backward_square) {
     float bv[] = {5, 6, 7, 8};
     for(int i = 0; i < 4; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_matmul(a, b);
+    struct PicoTensor* c = pico_matmul(NULL, a, b);
     pico_backward(ar, c);  // seeds c->grad = 1
 
     ASSERT_TRUE(a->grad[0] == 11.0f);
@@ -393,7 +393,7 @@ UTEST(matmul, backward_non_square) {
     float bv[] = {7, 8, 9, 10, 11, 12};
     for(int i = 0; i < 6; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_matmul(a, b);  // (2,2)
+    struct PicoTensor* c = pico_matmul(NULL, a, b);  // (2,2)
     pico_backward(ar, c);                       // seed dC = ones(2,2)
 
     // dA = dC·Bᵀ, dC=ones(2,2): each dA[i][k] = sum of row k of B = (b[k][0]+b[k][1])
@@ -433,7 +433,7 @@ UTEST(backward_full, add_deep_chain) {
     struct PicoTensor* c = pico_param(s, 1);
     struct PicoTensor* d = pico_param(s, 1);
 
-    struct PicoTensor* L = pico_add(pico_add(pico_add(a, b), c), d);
+    struct PicoTensor* L = pico_add(NULL, pico_add(NULL, pico_add(NULL, a, b), c), d);
     pico_backward(ar, L);
 
     ASSERT_TRUE(a->grad[0] == 1.0f);
@@ -460,9 +460,9 @@ UTEST(backward_full, add_diamond_reuses_leaf) {
     struct PicoTensor* x = pico_param(s, 1);
     struct PicoTensor* y = pico_param(s, 1);
 
-    struct PicoTensor* p = pico_add(a, x);
-    struct PicoTensor* q = pico_add(a, y);
-    struct PicoTensor* L = pico_add(p, q);
+    struct PicoTensor* p = pico_add(NULL, a, x);
+    struct PicoTensor* q = pico_add(NULL, a, y);
+    struct PicoTensor* L = pico_add(NULL, p, q);
     pico_backward(ar, L);
 
     ASSERT_TRUE(a->grad[0] == 2.0f);  // two paths to L
@@ -493,7 +493,7 @@ UTEST(backward_full, matmul_dot_shape) {
     float bv[] = {4, 5, 6};
     for(int i = 0; i < 3; i++) b->data[i] = bv[i];
 
-    struct PicoTensor* c = pico_matmul(a, b);
+    struct PicoTensor* c = pico_matmul(NULL, a, b);
     ASSERT_TRUE(c->data[0] == 32.0f);  // 1*4 + 2*5 + 3*6
     pico_backward(ar, c);
 
@@ -529,7 +529,7 @@ UTEST(backward_full, matmul_then_add) {
 
     struct PicoTensor* c = pico_param(s, 2);  // same shape as A@B -> no broadcast
 
-    struct PicoTensor* e = pico_add(pico_matmul(a, b), c);
+    struct PicoTensor* e = pico_add(NULL, pico_matmul(NULL, a, b), c);
     pico_backward(ar, e);
 
     ASSERT_TRUE(a->grad[0] == 11.0f);
@@ -565,7 +565,7 @@ UTEST(backward_full, matmul_shared_parent) {
     float av[] = {1, 2, 3, 4};
     for(int i = 0; i < 4; i++) a->data[i] = av[i];
 
-    struct PicoTensor* c = pico_matmul(a, a);
+    struct PicoTensor* c = pico_matmul(NULL, a, a);
     pico_backward(ar, c);
 
     ASSERT_TRUE(a->grad[0] == 7.0f);
@@ -598,7 +598,7 @@ UTEST(broadcast_backward, add_row) {
     int64_t sb[] = {2};
     struct PicoTensor* b = pico_param(sb, 1);  // 1D -> different ndim
 
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
     ASSERT_EQ(c->ndim, 2);
     ASSERT_EQ(c->numel, 4);
 
@@ -633,7 +633,7 @@ UTEST(broadcast_backward, add_col) {
     int64_t sb[] = {2, 1};
     struct PicoTensor* b = pico_param(sb, 2);
 
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
 
     float g[] = {1, 2, 3, 4};
     for(int i = 0; i < 4; i++) c->grad[i] = g[i];
@@ -660,7 +660,7 @@ UTEST(broadcast_backward, sub_row) {
     int64_t sb[] = {2};
     struct PicoTensor* b = pico_param(sb, 1);
 
-    struct PicoTensor* c = pico_sub(a, b);
+    struct PicoTensor* c = pico_sub(NULL, a, b);
 
     float g[] = {1, 2, 3, 4};
     for(int i = 0; i < 4; i++) c->grad[i] = g[i];
@@ -696,7 +696,7 @@ UTEST(mul, forward_elementwise) {
         b->data[i] = bv[i];
     }
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
 
     ASSERT_TRUE(c->data[0] == 4.0f);   // 1*4
     ASSERT_TRUE(c->data[1] == 10.0f);  // 2*5
@@ -724,7 +724,7 @@ UTEST(mul, forward_broadcast) {
     b->data[0] = 10.0f;
     b->data[1] = 20.0f;
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
     ASSERT_EQ(c->ndim, 2);
     ASSERT_EQ(c->numel, 4);
 
@@ -747,7 +747,7 @@ UTEST(mul, wires_graph) {
     int64_t s[] = {2};
     struct PicoTensor* a = pico_param(s, 1);
     struct PicoTensor* b = pico_param(s, 1);
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
 
     ASSERT_EQ(c->num_parents, 2);
     ASSERT_TRUE(c->parents[0] == a);
@@ -777,7 +777,7 @@ UTEST(mul, backward_same_shape) {
     b->data[0] = 4.0f;
     b->data[1] = 5.0f;
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
     c->grad[0] = 10.0f;
     c->grad[1] = 100.0f;
     c->_backward(c);
@@ -804,7 +804,7 @@ UTEST(mul, backward_accumulates) {
     a->data[0] = 3.0f;
     b->data[0] = 7.0f;
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
     c->grad[0] = 1.0f;
     c->_backward(c);
     c->_backward(c);
@@ -839,7 +839,7 @@ UTEST(broadcast_backward, mul_row) {
     b->data[0] = 10.0f;
     b->data[1] = 20.0f;
 
-    struct PicoTensor* c = pico_mul(a, b);
+    struct PicoTensor* c = pico_mul(NULL, a, b);
 
     float g[] = {1, 2, 3, 4};
     for(int i = 0; i < 4; i++) c->grad[i] = g[i];
@@ -871,7 +871,7 @@ UTEST(broadcast_backward, add_row_through_pico_backward) {
     int64_t sb[] = {2};
     struct PicoTensor* b = pico_param(sb, 1);
 
-    struct PicoTensor* c = pico_add(a, b);
+    struct PicoTensor* c = pico_add(NULL, a, b);
     pico_backward(ar, c);  // seeds c->grad = 1, walks
 
     ASSERT_TRUE(a->grad[0] == 1.0f);

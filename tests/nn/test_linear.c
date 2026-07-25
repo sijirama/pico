@@ -30,7 +30,7 @@ UTEST(linear, init_sets_dims) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, false);
     ASSERT_TRUE(fc != NULL);
     ASSERT_EQ(fc->in_features, 3);
     ASSERT_EQ(fc->out_features, 4);
@@ -45,7 +45,7 @@ UTEST(linear, no_bias_is_null) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, false);
     ASSERT_TRUE(fc->bias == NULL);
 
     pico_nn_linear_free(fc);
@@ -59,7 +59,7 @@ UTEST(linear, weights_shape) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, false);
     ASSERT_TRUE(fc->weights != NULL);
     ASSERT_EQ(fc->weights->ndim, 2);
     ASSERT_TRUE(fc->weights->shape[0] == 3);  // in_features (the matmul contraction dim)
@@ -76,12 +76,12 @@ UTEST(linear, forward_shape_no_bias) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, false);
 
     int64_t si[] = {2, 3};
     struct PicoTensor* x = pico_param(si, 2);
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_EQ(out->ndim, 2);
     ASSERT_TRUE(out->shape[0] == 2);
@@ -100,7 +100,7 @@ UTEST(linear, forward_values_identity) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 2, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 2, false);
     fc->weights->data[0] = 1.0f;  // [[1,0],
     fc->weights->data[1] = 0.0f;  //  [0,1]]
     fc->weights->data[2] = 0.0f;
@@ -111,7 +111,7 @@ UTEST(linear, forward_values_identity) {
     x->data[0] = 3.0f;
     x->data[1] = 5.0f;
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_TRUE(out->data[0] == 3.0f);
     ASSERT_TRUE(out->data[1] == 5.0f);
@@ -128,12 +128,12 @@ UTEST(linear, forward_incompatible_returns_null) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, false);
 
     int64_t si[] = {2, 5};
     struct PicoTensor* x = pico_param(si, 2);
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out == NULL);
 
     pico_free(x);
@@ -148,7 +148,7 @@ UTEST(linear, weights_are_persistent) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, true);
     ASSERT_TRUE(fc->weights->is_persistent == 1);
     ASSERT_TRUE(fc->bias->is_persistent == 1);
 
@@ -163,7 +163,7 @@ UTEST(linear, bias_is_per_output_feature) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, true);
     ASSERT_TRUE(fc->bias != NULL);
     ASSERT_EQ(fc->bias->numel, 4);  // out_features
 
@@ -181,12 +181,12 @@ UTEST(linear, forward_with_bias_shape) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 3, 4, true);
 
     int64_t si[] = {2, 3};
     struct PicoTensor* x = pico_param(si, 2);
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out != NULL);  // bias is [out] now -> broadcasts down the batch
     ASSERT_TRUE(out->shape[0] == 2);
     ASSERT_TRUE(out->shape[1] == 4);
@@ -204,7 +204,7 @@ UTEST(linear, forward_with_bias_values) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 1, true);
     fc->weights->data[0] = 3.0f;
     fc->weights->data[1] = 4.0f;
     fc->bias->data[0] = 10.0f;
@@ -214,7 +214,7 @@ UTEST(linear, forward_with_bias_values) {
     x->data[0] = 1.0f;
     x->data[1] = 2.0f;
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_TRUE(out->data[0] == 21.0f);  // 3 + 8 + 10
 
@@ -230,7 +230,7 @@ UTEST(linear, bias_broadcasts_over_batch) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 1, true);
     fc->weights->data[0] = 1.0f;
     fc->weights->data[1] = 1.0f;
     fc->bias->data[0] = 5.0f;
@@ -242,7 +242,7 @@ UTEST(linear, bias_broadcasts_over_batch) {
     x->data[2] = 2.0f;
     x->data[3] = 2.0f;
 
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_TRUE(out->shape[0] == 2);
     ASSERT_TRUE(out->data[0] == 7.0f);  // row 0: 2 + 5
@@ -263,7 +263,7 @@ UTEST(linear, backward_populates_grads) {
     struct Arena* ar = arena_init(1 << 16);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 1, true);  // W,b start at 0 (calloc)
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 1, true);  // W,b start at 0 (calloc)
 
     int64_t si[] = {1, 2};
     struct PicoTensor* x = pico_param(si, 2);
@@ -275,8 +275,8 @@ UTEST(linear, backward_populates_grads) {
     target->data[0] = 5.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* out = pico_nn_linear_forward(fc, x);
-    struct PicoTensor* loss = pico_mse_loss(&mse, out, target);
+    struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, out, target);
     pico_backward(ar, loss);
 
     ASSERT_TRUE(fc->weights->grad[0] == -10.0f);
@@ -298,7 +298,7 @@ UTEST(linear, trains_one_step_lowers_loss) {
     struct Arena* ar = arena_init(1 << 18);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 1, true);
 
     int64_t si[] = {1, 2};
     struct PicoTensor* x = pico_param(si, 2);
@@ -314,16 +314,16 @@ UTEST(linear, trains_one_step_lowers_loss) {
     pico_optim_sgd_add(opt, fc->bias);
     struct PicoMSELoss mse = {.reduction = MEAN};
 
-    struct PicoTensor* out1 = pico_nn_linear_forward(fc, x);
-    struct PicoTensor* loss1 = pico_mse_loss(&mse, out1, target);
+    struct PicoTensor* out1 = pico_nn_linear_forward(NULL, fc, x);
+    struct PicoTensor* loss1 = pico_mse_loss(NULL, &mse, out1, target);
     float l1 = loss1->data[0];
 
     pico_optim_sgd_zero_grad(opt);
     pico_backward(ar, loss1);
     pico_optim_sgd_step(opt);
 
-    struct PicoTensor* out2 = pico_nn_linear_forward(fc, x);
-    struct PicoTensor* loss2 = pico_mse_loss(&mse, out2, target);
+    struct PicoTensor* out2 = pico_nn_linear_forward(NULL, fc, x);
+    struct PicoTensor* loss2 = pico_mse_loss(NULL, &mse, out2, target);
     float l2 = loss2->data[0];
 
     ASSERT_TRUE(l1 == 25.0f);  // sanity: starts where we expect
@@ -343,7 +343,7 @@ UTEST(linear, trains_converges) {
     struct Arena* ar = arena_init(1 << 20);
     arena_ctx_push(ar);
 
-    struct PicoLinear* fc = pico_nn_linear_init(2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(NULL, 2, 1, true);
 
     int64_t si[] = {1, 2};
     struct PicoTensor* x = pico_param(si, 2);
@@ -361,8 +361,8 @@ UTEST(linear, trains_converges) {
 
     float prev = 1e30f;
     for(int step = 0; step < 25; step++) {
-        struct PicoTensor* out = pico_nn_linear_forward(fc, x);
-        struct PicoTensor* loss = pico_mse_loss(&mse, out, target);
+        struct PicoTensor* out = pico_nn_linear_forward(NULL, fc, x);
+        struct PicoTensor* loss = pico_mse_loss(NULL, &mse, out, target);
         float l = loss->data[0];
         ASSERT_TRUE(l < prev);  // strictly decreasing every step
         prev = l;

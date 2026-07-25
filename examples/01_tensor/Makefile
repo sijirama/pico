@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -std=c11 -Wall -I ../../src
-LDFLAGS = -L ../../lib -lpico -lm -pthread
+CFLAGS = -std=c11 -Wall -I ../../src -fopenmp
+LDFLAGS = -L ../../lib -lpico -lm -pthread -fopenmp
 
 TARGET = 01_tensor
 

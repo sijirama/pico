@@ -28,9 +28,9 @@ struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim);
 struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim);
 
 // a 1-element tensor (shape {1}) holding a single scalar. broadcasts against any
-// shape, so you can do pico_mul(pico_tensor_from_scalar(2.0f), t). uses the current
-// ctx arena (composes with the ops, which also use arena_ctx_current()).
-struct PicoTensor* pico_tensor_from_scalar(float value);
+// shape, so you can do pico_mul(NULL, pico_tensor_from_scalar(NULL, 2.0f), t).
+// NULL means use the current ctx arena.
+struct PicoTensor* pico_tensor_from_scalar(struct Arena* arena, float value);
 
 void pico_free(struct PicoTensor* tensor);
 
@@ -47,7 +47,7 @@ void pico_transpose_reshape(struct PicoTensor* tensor, int64_t* shape, int ndim)
 
 struct PicoTensor* pico_transpose_clone(struct PicoTensor* tensor);
 
-struct PicoTensor* pico_cat(struct PicoTensor* a, struct PicoTensor* b, int dim);
+struct PicoTensor* pico_cat(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b, int dim);
 
 // returns a tensor filled with random numbers from a uniform distribution on the interval ([0,1])
 struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim);

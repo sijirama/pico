@@ -73,13 +73,16 @@ UTEST(tpool, rejects_null_work_function) {
 UTEST(tpool, global_init_shutdown_lifecycle) {
     pico_shutdown();
     ASSERT_TRUE(global_tp == NULL);
+    ASSERT_TRUE(global_arena == NULL);
     ASSERT_EQ(g_pico_initialized, 0);
 
     pico_init();
     ASSERT_TRUE(global_tp != NULL);
+    ASSERT_TRUE(global_arena != NULL);
     ASSERT_EQ(g_pico_initialized, 1);
 
     pico_shutdown();
     ASSERT_TRUE(global_tp == NULL);
+    ASSERT_TRUE(global_arena == NULL);
     ASSERT_EQ(g_pico_initialized, 0);
 }

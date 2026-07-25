@@ -21,7 +21,7 @@ UTEST(act_relu, forward_clamps_negatives) {
     x->data[3] = 1.0f;
     x->data[4] = 3.0f;
 
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
 
     ASSERT_TRUE(out->data[0] == 0.0f);
     ASSERT_TRUE(out->data[1] == 0.0f);
@@ -41,7 +41,7 @@ UTEST(act_relu, forward_preserves_shape) {
 
     int64_t s[] = {2, 3};
     struct PicoTensor* x = pico_param(s, 2);
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
 
     ASSERT_EQ(out->ndim, 2);
     ASSERT_EQ(out->numel, 6);
@@ -60,7 +60,7 @@ UTEST(act_relu, wires_graph_unary) {
 
     int64_t s[] = {3};
     struct PicoTensor* x = pico_param(s, 1);
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
 
     ASSERT_EQ(out->num_parents, 1);
     ASSERT_TRUE(out->parents[0] == x);
@@ -82,7 +82,7 @@ UTEST(act_relu, backward_gate) {
     x->data[1] = 0.0f;   // blocked (boundary, out=0)
     x->data[2] = 3.0f;   // passes
 
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
     out->grad[0] = 1.0f;
     out->grad[1] = 1.0f;
     out->grad[2] = 1.0f;
@@ -107,7 +107,7 @@ UTEST(act_relu, backward_scales_upstream) {
     x->data[0] = 5.0f;
     x->data[1] = -1.0f;
 
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
     out->grad[0] = 7.0f;  // passes -> 7
     out->grad[1] = 7.0f;  // blocked -> 0
     out->_backward(out);
@@ -129,7 +129,7 @@ UTEST(act_relu, backward_accumulates) {
     struct PicoTensor* x = pico_param(s, 1);
     x->data[0] = 2.0f;
 
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
     out->grad[0] = 1.0f;
     out->_backward(out);
     out->_backward(out);
@@ -152,7 +152,7 @@ UTEST(act_relu, through_pico_backward) {
     x->data[1] = 0.0f;
     x->data[2] = 2.0f;
 
-    struct PicoTensor* out = pico_relu(x);
+    struct PicoTensor* out = pico_relu(NULL, x);
     pico_backward(ar, out);  // seeds out->grad=1, walks
 
     ASSERT_TRUE(x->grad[0] == 0.0f);  // gate closed

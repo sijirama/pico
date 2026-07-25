@@ -9,7 +9,7 @@
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
-struct PicoTensor* pico_add(struct PicoTensor* a, struct PicoTensor* b) {
+struct PicoTensor* pico_add(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
@@ -20,9 +20,9 @@ struct PicoTensor* pico_add(struct PicoTensor* a, struct PicoTensor* b) {
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for add allocation\n");
         return NULL;
     }
 
@@ -53,7 +53,7 @@ struct PicoTensor* pico_add(struct PicoTensor* a, struct PicoTensor* b) {
     return out;
 }
 
-struct PicoTensor* pico_sub(struct PicoTensor* a, struct PicoTensor* b) {
+struct PicoTensor* pico_sub(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
@@ -64,9 +64,9 @@ struct PicoTensor* pico_sub(struct PicoTensor* a, struct PicoTensor* b) {
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sub allocation\n");
         return NULL;
     }
 
@@ -97,7 +97,7 @@ struct PicoTensor* pico_sub(struct PicoTensor* a, struct PicoTensor* b) {
     return out;
 }
 
-struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
+struct PicoTensor* pico_mul(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
@@ -108,9 +108,9 @@ struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for mul allocation\n");
         return NULL;
     }
 
@@ -141,7 +141,7 @@ struct PicoTensor* pico_mul(struct PicoTensor* a, struct PicoTensor* b) {
     return out;
 }
 
-struct PicoTensor* pico_matmul(struct PicoTensor* a, struct PicoTensor* b) {
+struct PicoTensor* pico_matmul(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b) {
     if(a->shape[a->ndim - 1] != b->shape[0]) {
         perror("[Pico] Error: 2 matmuls matrices must be compatible");
         return NULL;
@@ -157,9 +157,9 @@ struct PicoTensor* pico_matmul(struct PicoTensor* a, struct PicoTensor* b) {
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for matmul allocation\n");
         return NULL;
     }
 
@@ -195,10 +195,10 @@ struct PicoTensor* pico_matmul(struct PicoTensor* a, struct PicoTensor* b) {
 // (sin'=cos, cos'=-sin, tan'=sec^2, tanh'=1-tanh^2, sqrt'=1/(2*sqrt)). unary =>
 // num_parents == 1. these five are near-identical: prime for a later bundle.
 
-struct PicoTensor* pico_tensor_sqrt(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_sqrt(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sqrt allocation\n");
         return NULL;
     }
 
@@ -217,10 +217,10 @@ struct PicoTensor* pico_tensor_sqrt(struct PicoTensor* a) {
     return out;
 }
 
-struct PicoTensor* pico_tensor_sin(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_sin(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sin allocation\n");
         return NULL;
     }
 
@@ -239,10 +239,10 @@ struct PicoTensor* pico_tensor_sin(struct PicoTensor* a) {
     return out;
 }
 
-struct PicoTensor* pico_tensor_cos(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_cos(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for cos allocation\n");
         return NULL;
     }
 
@@ -261,10 +261,10 @@ struct PicoTensor* pico_tensor_cos(struct PicoTensor* a) {
     return out;
 }
 
-struct PicoTensor* pico_tensor_tan(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_tan(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for tan allocation\n");
         return NULL;
     }
 
@@ -283,10 +283,10 @@ struct PicoTensor* pico_tensor_tan(struct PicoTensor* a) {
     return out;
 }
 
-struct PicoTensor* pico_tensor_tanh(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_tanh(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for tanh allocation\n");
         return NULL;
     }
 
@@ -305,10 +305,10 @@ struct PicoTensor* pico_tensor_tanh(struct PicoTensor* a) {
     return out;
 }
 
-struct PicoTensor* pico_tensor_log(struct PicoTensor* a) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoTensor* pico_tensor_log(struct Arena* arena, struct PicoTensor* a) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for log allocation\n");
         return NULL;
     }
 

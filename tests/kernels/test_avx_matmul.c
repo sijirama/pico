@@ -33,7 +33,7 @@ UTEST(avx_matmul, square_2x2) {
         b->data[i] = bv[i];
     }
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     pico_tensor_print(out);  // see what the AVX matmul actually produced
     float o0 = out->data[0], o1 = out->data[1], o2 = out->data[2], o3 = out->data[3];
 
@@ -71,7 +71,7 @@ UTEST(avx_matmul, nonsquare_2x3_3x2) {
         b->data[i] = bv[i];
     }
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     float o0 = out->data[0], o1 = out->data[1], o2 = out->data[2], o3 = out->data[3];
 
     pico_free(a);
@@ -121,7 +121,7 @@ UTEST(avx_matmul, exact_2x3_3x8) {
     for(int i = 0; i < 24; i++)
         b->data[i] = bv[i];
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     pico_tensor_print(out);
 
     float expected[] = {
@@ -177,7 +177,7 @@ UTEST(avx_matmul, row_tail_3x3_3x8) {
     for(int i = 0; i < 24; i++)
         b->data[i] = bv[i];
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     pico_tensor_print(out);
 
     float expected[] = {
@@ -235,7 +235,7 @@ UTEST(avx_matmul, column_tail_2x3_3x10) {
     for(int i = 0; i < 30; i++)
         b->data[i] = bv[i];
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     pico_tensor_print(out);
 
     float expected[] = {
@@ -295,7 +295,7 @@ UTEST(avx_matmul, all_edges_3x3_3x10) {
     for(int i = 0; i < 30; i++)
         b->data[i] = bv[i];
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
 
     float expected[] = {
         86,  92,  98,  104, 110, 116, 122, 128, 134, 140, 185, 200, 215, 230, 245,
@@ -338,7 +338,7 @@ UTEST(avx_matmul, times_identity) {
     b->data[2] = 0;
     b->data[3] = 1;
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     pico_tensor_print(out);
     float o0 = out->data[0], o1 = out->data[1], o2 = out->data[2], o3 = out->data[3];
 
@@ -377,7 +377,7 @@ UTEST(avx_matmul, wide_columns_10) {
         b->data[10 + j] = 0.0f;  // row 1
     }
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     float o0 = out->data[0], o7 = out->data[7], o8 = out->data[8], o9 = out->data[9];
 
     pico_tensor_print(out);
@@ -411,7 +411,7 @@ UTEST(avx_matmul, single_1x1) {
     a->data[0] = 3;
     b->data[0] = 4;
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     float o0 = out->data[0];
 
     pico_free(a);
@@ -445,7 +445,7 @@ UTEST(avx_matmul, row_dot_col) {
     b->data[1] = 5;
     b->data[2] = 6;
 
-    struct PicoTensor* out = pico_matmul(a, b);
+    struct PicoTensor* out = pico_matmul(NULL, a, b);
     float o0 = out->data[0];
 
     pico_free(a);

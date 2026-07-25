@@ -21,7 +21,7 @@ UTEST(loss, mse_forward_single_element) {
     actual->data[0] = 3.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     // (5-3)^2 = 4
     ASSERT_TRUE(loss->data[0] == 4.0f);
@@ -49,7 +49,7 @@ UTEST(loss, mse_forward_multi_element_mean) {
     actual->data[2] = 0.0f;  // diff 3 -> sq 9
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     // (1+4+9)/3 = 4.666...
     ASSERT_TRUE(loss->data[0] > 4.66f && loss->data[0] < 4.67f);
@@ -70,7 +70,7 @@ UTEST(loss, mse_wires_graph) {
     struct PicoTensor* actual = pico_param(s, 1);
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     ASSERT_EQ(loss->num_parents, 2);
     ASSERT_TRUE(loss->parents[0] == pred);
@@ -97,7 +97,7 @@ UTEST(loss, mse_backward_matches_finite_difference) {
     actual->data[1] = 2.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     loss->grad[0] = 1.0f;
     loss->_backward(loss);
@@ -127,7 +127,7 @@ UTEST(loss, mse_backward_accumulates) {
     actual->data[0] = 3.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     loss->grad[0] = 1.0f;
     loss->_backward(loss);
@@ -157,7 +157,7 @@ UTEST(loss, mse_sum_forward) {
     pred->data[2] = 3.0f;  // diff 3 -> 9   (actuals default 0)
 
     struct PicoMSELoss mse = {.reduction = SUM};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     ASSERT_TRUE(loss->data[0] == 14.0f);  // 1+4+9, NOT /3
 
@@ -179,7 +179,7 @@ UTEST(loss, mse_sum_backward) {
     actual->data[0] = 3.0f;
 
     struct PicoMSELoss mse = {.reduction = SUM};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     loss->grad[0] = 1.0f;
     loss->_backward(loss);
@@ -204,7 +204,7 @@ UTEST(loss, mse_backward_actuals_side) {
     actual->data[0] = 3.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     loss->grad[0] = 1.0f;
     loss->_backward(loss);
@@ -230,7 +230,7 @@ UTEST(loss, mse_output_is_scalar) {
     struct PicoTensor* actual = pico_param(s, 1);
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     ASSERT_TRUE(loss->numel == 1);  // currently 3 -> FAILS until loss is a true scalar
 
@@ -255,7 +255,7 @@ UTEST(loss, mse_through_pico_backward) {
     actual->data[1] = 2.0f;
 
     struct PicoMSELoss mse = {.reduction = MEAN};
-    struct PicoTensor* loss = pico_mse_loss(&mse, pred, actual);
+    struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, actual);
 
     pico_backward(ar, loss);  // seeds loss grad + walks the graph
 

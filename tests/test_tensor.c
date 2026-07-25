@@ -147,7 +147,7 @@ UTEST(pico_tensor_from_scalar, holds_value) {
     struct Arena* ar = arena_init(4096);
     arena_ctx_push(ar);
 
-    struct PicoTensor* s = pico_tensor_from_scalar(3.5f);
+    struct PicoTensor* s = pico_tensor_from_scalar(NULL, 3.5f);
     ASSERT_TRUE(s != NULL);
     ASSERT_EQ(s->ndim, 1);
     ASSERT_EQ(s->numel, 1);
@@ -169,7 +169,7 @@ UTEST(pico_tensor_from_scalar, broadcasts_through_mul) {
     t->data[1] = 2.0f;
     t->data[2] = 3.0f;
 
-    struct PicoTensor* out = pico_mul(pico_tensor_from_scalar(2.0f), t);
+    struct PicoTensor* out = pico_mul(NULL, pico_tensor_from_scalar(NULL, 2.0f), t);
     ASSERT_TRUE(out != NULL);
     ASSERT_EQ(out->numel, 3);
     ASSERT_TRUE(out->data[0] == 2.0f);

@@ -33,14 +33,14 @@ UTEST(train, step_lowers_loss_scalar) {
     pico_optim_sgd_add(opt, w);
     struct PicoMSELoss mse = {.reduction = MEAN};
 
-    struct PicoTensor* loss1 = pico_mse_loss(&mse, w, target);
+    struct PicoTensor* loss1 = pico_mse_loss(NULL, &mse, w, target);
     float l1 = loss1->data[0];
 
     pico_optim_sgd_zero_grad(opt);
     pico_backward(ar, loss1);
     pico_optim_sgd_step(opt);
 
-    struct PicoTensor* loss2 = pico_mse_loss(&mse, w, target);
+    struct PicoTensor* loss2 = pico_mse_loss(NULL, &mse, w, target);
     float l2 = loss2->data[0];
 
     ASSERT_TRUE(l2 < l1);  // it learned something
@@ -76,14 +76,14 @@ UTEST(train, step_lowers_loss_linear) {
     pico_optim_sgd_add(opt, w);  // only the weight is learnable
     struct PicoMSELoss mse = {.reduction = MEAN};
 
-    struct PicoTensor* loss1 = pico_mse_loss(&mse, pico_matmul(x, w), target);
+    struct PicoTensor* loss1 = pico_mse_loss(NULL, &mse, pico_matmul(NULL, x, w), target);
     float l1 = loss1->data[0];
 
     pico_optim_sgd_zero_grad(opt);
     pico_backward(ar, loss1);
     pico_optim_sgd_step(opt);
 
-    struct PicoTensor* loss2 = pico_mse_loss(&mse, pico_matmul(x, w), target);
+    struct PicoTensor* loss2 = pico_mse_loss(NULL, &mse, pico_matmul(NULL, x, w), target);
     float l2 = loss2->data[0];
 
     ASSERT_TRUE(l2 < l1);
@@ -113,7 +113,7 @@ UTEST(train, multi_step_keeps_improving) {
 
     float prev = 1e30f;
     for(int step = 0; step < 10; step++) {
-        struct PicoTensor* loss = pico_mse_loss(&mse, w, target);
+        struct PicoTensor* loss = pico_mse_loss(NULL, &mse, w, target);
         float l = loss->data[0];
         ASSERT_TRUE(l < prev);  // strictly decreasing each step
         prev = l;
@@ -169,8 +169,8 @@ UTEST(train, relu_mlp_lowers_loss) {
 
     float prev = 1e30f;
     for(int step = 0; step < 5; step++) {
-        struct PicoTensor* pred = pico_matmul(pico_relu(pico_matmul(x, W1)), W2);
-        struct PicoTensor* loss = pico_mse_loss(&mse, pred, target);
+        struct PicoTensor* pred = pico_matmul(NULL, pico_relu(NULL, pico_matmul(NULL, x, W1)), W2);
+        struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, target);
 
         float l = loss->data[0];
         ASSERT_TRUE(l < prev);  // strictly decreasing every step

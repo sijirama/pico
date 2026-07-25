@@ -16,8 +16,8 @@ int main(void) {
 
     int64_t shape[1] = {3};
     struct PicoTensor* x = pico_rand(arena, shape, 1);
-    struct PicoTensor* scale = pico_tensor_from_scalar(2.0f);
-    struct PicoTensor* y = pico_mul(x, scale);
+    struct PicoTensor* scale = pico_tensor_from_scalar(NULL, 2.0f);
+    struct PicoTensor* y = pico_mul(NULL, x, scale);
 
     printf("x: ");
     for(int64_t i = 0; i < x->numel; i++) {

@@ -6,10 +6,10 @@
 #include "ops.h"
 #include "tensor.h"
 
-struct PicoLinear* pico_nn_linear_init(int in_features, int out_features, bool bias) {
-    struct Arena* arena = arena_ctx_current();
+struct PicoLinear* pico_nn_linear_init(struct Arena* arena, int in_features, int out_features, bool bias) {
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for linear init allocation\n");
         return NULL;
     }
 
@@ -37,7 +37,7 @@ struct PicoLinear* pico_nn_linear_init(int in_features, int out_features, bool b
     return linear;
 }
 
-struct PicoTensor* pico_nn_linear_forward(struct PicoLinear* layer, struct PicoTensor* input) {
+struct PicoTensor* pico_nn_linear_forward(struct Arena* arena, struct PicoLinear* layer, struct PicoTensor* input) {
     //
     //
     //
@@ -51,16 +51,16 @@ struct PicoTensor* pico_nn_linear_forward(struct PicoLinear* layer, struct PicoT
         return NULL;
     }
 
-    struct Arena* arena = arena_ctx_current();
+    arena = arena_resolve(arena);
     if(arena == NULL) {
-        fprintf(stderr, "[Pico] Error: In Linear - No current arena in context!\n");
+        fprintf(stderr, "PicoArenaError: no arena available for linear forward allocation\n");
         return NULL;
     }
 
-    struct PicoTensor* output = pico_matmul(input, layer->weights);
+    struct PicoTensor* output = pico_matmul(arena, input, layer->weights);
 
     if(layer->bias != NULL) {
-        output = pico_add(output, layer->bias);
+        output = pico_add(arena, output, layer->bias);
     }
 
     return output;
