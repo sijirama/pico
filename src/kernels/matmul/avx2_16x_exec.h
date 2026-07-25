@@ -134,7 +134,7 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx_16x(s
     long long flops = 2LL * (long long)rows * (long long)columns * (long long)k_dim;
 
     if(flops >= MATMUL_OPENMP_MIN_FLOPS) {
-#pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for(int i = 0; i <= rows - roll; i += roll) {
             pico_matmul_cpu_avx_16x_exec(a, b, out, i, i + roll, columns, k_dim);
         }
