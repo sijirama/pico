@@ -2,6 +2,7 @@
 
 #define PICO_VERSION "0.01"
 
+#include "ctx.h"
 #include "tensor.h"
 #include "arena.h"
 #include "global.h"

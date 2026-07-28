@@ -31,20 +31,20 @@ static void init_layer_weights(struct PicoLinear* l1, struct PicoLinear* l2) {
     l2->bias->data[0] = 0.10f;
 }
 
-static struct PicoTensor* forward(struct PicoLinear* l1, struct PicoLinear* l2,
+static struct PicoTensor* forward(struct PicoContext* ctx, struct PicoLinear* l1, struct PicoLinear* l2,
                                   struct PicoTensor* x) {
-    struct PicoTensor* h = pico_nn_linear_forward(NULL, l1, x);
-    h = pico_relu(NULL, h);
-    return pico_nn_linear_forward(NULL, l2, h);
+    struct PicoTensor* h = pico_nn_linear_forward(ctx, l1, x);
+    h = pico_relu(ctx, h);
+    return pico_nn_linear_forward(ctx, l2, h);
 }
 
 int main(void) {
     pico_init();
 
-    struct Arena* data_arena = arena_init(1 << 16);
-    struct Arena* step_arena = arena_init(1 << 20);
-    if(data_arena == NULL || step_arena == NULL) {
-        fprintf(stderr, "failed to create arena\n");
+    struct PicoContext data_ctx = pico_context_init();
+    struct PicoContext train_ctx = pico_context_init();
+    if(data_ctx.arena == NULL || train_ctx.arena == NULL) {
+        fprintf(stderr, "failed to create context\n");
         return 1;
     }
 
@@ -71,22 +71,14 @@ int main(void) {
         9.0f,
     };
 
-    arena_ctx_push(data_arena);
-    struct PicoTensor* x = pico_tensor_from_data(NULL, x_shape, 2, x_values);
-    struct PicoTensor* y = pico_tensor_from_data(NULL, y_shape, 2, y_values);
-    arena_ctx_pop();
+    struct PicoTensor* x = pico_tensor_from_data(&data_ctx, x_shape, 2, x_values);
+    struct PicoTensor* y = pico_tensor_from_data(&data_ctx, y_shape, 2, y_values);
 
-    arena_ctx_push(step_arena);
-
-    struct PicoLinear* l1 = pico_nn_linear_init(NULL, 2, 4, true);
-    struct PicoLinear* l2 = pico_nn_linear_init(NULL, 4, 1, true);
+    struct PicoLinear* l1 = pico_nn_linear_init(&train_ctx, 2, 4, true);
+    struct PicoLinear* l2 = pico_nn_linear_init(&train_ctx, 4, 1, true);
     init_layer_weights(l1, l2);
 
     struct PicoOptimSGD* opt = pico_optim_sgd_init(0.001f);
-    pico_optim_sgd_add(opt, l1->weights);
-    pico_optim_sgd_add(opt, l1->bias);
-    pico_optim_sgd_add(opt, l2->weights);
-    pico_optim_sgd_add(opt, l2->bias);
 
     struct PicoMSELoss mse = {.reduction = MEAN};
 
@@ -94,23 +86,23 @@ int main(void) {
     printf("model: Linear(2,4,bias) -> ReLU -> Linear(4,1,bias)\n\n");
 
     for(int step = 0; step <= 800; step++) {
-        struct PicoTensor* pred = forward(l1, l2, x);
-        struct PicoTensor* loss = pico_mse_loss(NULL, &mse, pred, y);
+        struct PicoTensor* pred = forward(&train_ctx, l1, l2, x);
+        struct PicoTensor* loss = pico_mse_loss(&train_ctx, &mse, pred, y);
 
         if(step % 100 == 0) {
             printf("step %3d | loss %.6f | pred[0] %.4f | target[0] %.4f\n", step,
                    loss->data[0], pred->data[0], y->data[0]);
         }
 
-        pico_optim_sgd_zero_grad(opt);
-        pico_backward(step_arena, loss);
-        pico_optim_sgd_step(opt);
+        pico_optim_sgd_zero_grad(&train_ctx, opt);
+        pico_backward(&train_ctx, loss);
+        pico_optim_sgd_step(&train_ctx, opt);
 
-        arena_reset(step_arena);
+        arena_reset(train_ctx.arena);
     }
 
-    struct PicoTensor* final_pred = forward(l1, l2, x);
-    struct PicoTensor* final_loss = pico_mse_loss(NULL, &mse, final_pred, y);
+    struct PicoTensor* final_pred = forward(&train_ctx, l1, l2, x);
+    struct PicoTensor* final_loss = pico_mse_loss(&train_ctx, &mse, final_pred, y);
 
     printf("\nfinal loss: %.6f\n", final_loss->data[0]);
     printf("\nfirst four predictions:\n");
@@ -121,9 +113,8 @@ int main(void) {
     pico_optim_sgd_free(opt);
     pico_nn_linear_free(l1);
     pico_nn_linear_free(l2);
-    arena_ctx_pop();
-    arena_destroy(step_arena);
-    arena_destroy(data_arena);
+    pico_context_destroy(&train_ctx);
+    pico_context_destroy(&data_ctx);
     pico_shutdown();
 
     return 0;

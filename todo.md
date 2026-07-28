@@ -2,13 +2,13 @@
 
 ## 1. Training loop foundation
 
-- [ ] Add module parameter collection.
+- [x] Add module parameter collection.
   - Optimizers should be able to receive all trainable tensors from a model cleanly.
 
-- [ ] Add `train` / `eval` mode support for modules.
+- [x] Add `train` / `eval` mode support for modules.
   - Needed before dropout, batch norm, and any behavior that changes between training and inference.
 
-- [ ] Add a cleaner zero-grad flow.
+- [x] Add a cleaner zero-grad flow.
   - Training loops should not need to manually know every parameter.
 
 ## 2. Data input

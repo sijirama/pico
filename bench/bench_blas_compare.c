@@ -13,6 +13,7 @@
 #include <time.h>
 
 #include "global.h"
+#include "ctx.h"
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
@@ -131,11 +132,12 @@ int main(void) {
         int64_t sa[] = {shape.m, shape.k};
         int64_t sb[] = {shape.k, shape.n};
         int64_t so[] = {shape.m, shape.n};
+        struct PicoContext ctx = pico_context_init();
 
-        struct PicoTensor* a = pico_param(sa, 2);
-        struct PicoTensor* b = pico_param(sb, 2);
-        struct PicoTensor* pico_out = pico_param(so, 2);
-        struct PicoTensor* blas_out = pico_param(so, 2);
+        struct PicoTensor* a = pico_param(&ctx, sa, 2);
+        struct PicoTensor* b = pico_param(&ctx, sb, 2);
+        struct PicoTensor* pico_out = pico_param(&ctx, so, 2);
+        struct PicoTensor* blas_out = pico_param(&ctx, so, 2);
 
         fill_tensor(a, 13, 0.25f);
         fill_tensor(b, 7, 0.5f);
@@ -153,10 +155,7 @@ int main(void) {
                pico_t * 1e3, flops / pico_t / 1e9, blas_t * 1e3, flops / blas_t / 1e9, diff,
                diff > TOL ? " MISMATCH" : "");
 
-        pico_free(a);
-        pico_free(b);
-        pico_free(pico_out);
-        pico_free(blas_out);
+        pico_context_destroy(&ctx);
     }
 
     printf("\n");

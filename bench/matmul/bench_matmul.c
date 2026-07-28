@@ -18,6 +18,7 @@
 #include <time.h>
 
 #include "global.h"
+#include "ctx.h"
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
@@ -54,10 +55,11 @@ int main(void) {
     pico_init();
 
     int64_t shape[] = {N, N};
-    struct PicoTensor* a = pico_param(shape, 2);
-    struct PicoTensor* b = pico_param(shape, 2);
-    struct PicoTensor* out = pico_param(shape, 2);
-    struct PicoTensor* ref = pico_param(shape, 2);
+    struct PicoContext ctx = pico_context_init();
+    struct PicoTensor* a = pico_param(&ctx, shape, 2);
+    struct PicoTensor* b = pico_param(&ctx, shape, 2);
+    struct PicoTensor* out = pico_param(&ctx, shape, 2);
+    struct PicoTensor* ref = pico_param(&ctx, shape, 2);
 
     // deterministic small values (kept small so the accumulation stays exact-ish)
     for(int64_t i = 0; i < a->numel; i++) {
@@ -96,9 +98,6 @@ int main(void) {
     printf("  ---------------------------------------------\n");
     printf("  speedup (scalar/avx): %.2fx\n\n", t_scalar / t_avx);
 
-    pico_free(a);
-    pico_free(b);
-    pico_free(out);
-    pico_free(ref);
+    pico_context_destroy(&ctx);
     return correct ? 0 : 1;
 }

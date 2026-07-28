@@ -5,9 +5,11 @@
 
 #include "tensor.h"
 
+struct PicoContext;
+
 static inline float sigmoid(float x) {
     return exp(x) / exp(x) + 1;
 }
 
-struct PicoTensor* pico_relu(struct Arena* arena, struct PicoTensor* x);
-struct PicoTensor* pico_sigmoid(struct Arena* arena, struct PicoTensor* x);
+struct PicoTensor* pico_relu(struct PicoContext* ctx, struct PicoTensor* x);
+struct PicoTensor* pico_sigmoid(struct PicoContext* ctx, struct PicoTensor* x);
