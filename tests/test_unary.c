@@ -6,7 +6,7 @@
  */
 #include <math.h>
 
-#include "arena.h"
+#include "ctx.h"
 #include "ops.h"
 #include "tensor.h"
 #include "utest.h"
@@ -16,131 +16,112 @@
 
 // sqrt of perfect squares is exact -> can use ==
 UTEST(unary, sqrt_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {4};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
     x->data[1] = 4.0f;
     x->data[2] = 9.0f;
     x->data[3] = 16.0f;
 
-    struct PicoTensor* out = pico_sqrt(NULL, x);
+    struct PicoTensor* out = pico_sqrt(&ctx, x);
     ASSERT_TRUE(out != NULL);
     ASSERT_TRUE(out->data[0] == 0.0f);
     ASSERT_TRUE(out->data[1] == 2.0f);
     ASSERT_TRUE(out->data[2] == 3.0f);
     ASSERT_TRUE(out->data[3] == 4.0f);
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // sin(0)=0, sin(pi/2)=1
 UTEST(unary, sin_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
     x->data[1] = PI_F / 2.0f;
 
-    struct PicoTensor* out = pico_sin(NULL, x);
+    struct PicoTensor* out = pico_sin(&ctx, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // cos(0)=1, cos(pi)=-1
 UTEST(unary, cos_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
     x->data[1] = PI_F;
 
-    struct PicoTensor* out = pico_cos(NULL, x);
+    struct PicoTensor* out = pico_cos(&ctx, x);
     ASSERT_TRUE(NEAR(out->data[0], 1.0f));
     ASSERT_TRUE(NEAR(out->data[1], -1.0f));
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // tan(0)=0, tan(pi/4)=1
 UTEST(unary, tan_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
     x->data[1] = PI_F / 4.0f;
 
-    struct PicoTensor* out = pico_tan(NULL, x);
+    struct PicoTensor* out = pico_tan(&ctx, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // tanh(0)=0, saturates toward 1 for large positive input
 UTEST(unary, tanh_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
     x->data[1] = 20.0f;
 
-    struct PicoTensor* out = pico_tanh(NULL, x);
+    struct PicoTensor* out = pico_tanh(&ctx, x);
     ASSERT_TRUE(NEAR(out->data[0], 0.0f));
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // natural log: log(1)=0 (exact), log(e)=1
 UTEST(unary, log_forward) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 1.0f;
     x->data[1] = 2.71828182845904523536f;  // e
 
-    struct PicoTensor* out = pico_log(NULL, x);
+    struct PicoTensor* out = pico_log(&ctx, x);
     ASSERT_TRUE(out->data[0] == 0.0f);
     ASSERT_TRUE(NEAR(out->data[1], 1.0f));
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // output keeps the input shape and wires the single parent (unary op)
 UTEST(unary, preserves_shape_and_wires_parent) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {2, 3};
-    struct PicoTensor* x = pico_param(s, 2);
-    struct PicoTensor* out = pico_sin(NULL, x);
+    struct PicoTensor* x = pico_param(&ctx, s, 2);
+    struct PicoTensor* out = pico_sin(&ctx, x);
 
     ASSERT_EQ(out->ndim, 2);
     ASSERT_EQ(out->numel, 6);
@@ -149,9 +130,7 @@ UTEST(unary, preserves_shape_and_wires_parent) {
     ASSERT_EQ(out->num_parents, 1);
     ASSERT_TRUE(out->parents[0] == x);
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 }
 
 // ===================================================================
@@ -163,21 +142,18 @@ UTEST(unary, preserves_shape_and_wires_parent) {
 
 // sqrt'(x) = 1/(2*sqrt(x)).  x=4 -> 1/4 = 0.25 ; * upstream 2 = 0.5
 UTEST(unary_backward, sqrt) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 4.0f;
 
-    struct PicoTensor* out = pico_sqrt(NULL, x);
+    struct PicoTensor* out = pico_sqrt(&ctx, x);
     out->grad[0] = 2.0f;  // upstream
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, 0.5f));
 }
@@ -186,105 +162,90 @@ UTEST(unary_backward, sqrt) {
 // (x=pi, not 0: at 0, sin(0)=0 so cos(output)==cos(input) and the input-vs-output
 // bug hides. at pi it's exposed — cos(sin(pi)) ~ 1, but cos(pi) = -1.)
 UTEST(unary_backward, sin) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = PI_F;
 
-    struct PicoTensor* out = pico_sin(NULL, x);
+    struct PicoTensor* out = pico_sin(&ctx, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, -2.0f));
 }
 
 // cos'(x) = -sin(x).  x=pi/2 -> -1 ; * 2 = -2  (x=0 would be 0, can't tell from a no-op)
 UTEST(unary_backward, cos) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = PI_F / 2.0f;
 
-    struct PicoTensor* out = pico_cos(NULL, x);
+    struct PicoTensor* out = pico_cos(&ctx, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, -2.0f));
 }
 
 // tan'(x) = sec^2(x) = 1/cos^2(x).  x=0 -> 1 ; * 2 = 2
 UTEST(unary_backward, tan) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
 
-    struct PicoTensor* out = pico_tan(NULL, x);
+    struct PicoTensor* out = pico_tan(&ctx, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, 2.0f));
 }
 
 // tanh'(x) = 1 - tanh^2(x).  x=0 -> 1 ; * 2 = 2
 UTEST(unary_backward, tanh) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 0.0f;
 
-    struct PicoTensor* out = pico_tanh(NULL, x);
+    struct PicoTensor* out = pico_tanh(&ctx, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, 2.0f));
 }
 
 // log'(x) = 1/x.  x=2 -> 0.5 ; * 2 = 1
 UTEST(unary_backward, log) {
-    struct Arena* ar = arena_init(4096);
-    arena_ctx_push(ar);
+    struct PicoContext ctx = pico_context_init();
 
     int64_t s[] = {1};
-    struct PicoTensor* x = pico_param(s, 1);
+    struct PicoTensor* x = pico_param(&ctx, s, 1);
     x->data[0] = 2.0f;
 
-    struct PicoTensor* out = pico_log(NULL, x);
+    struct PicoTensor* out = pico_log(&ctx, x);
     out->grad[0] = 2.0f;
     out->_backward(out);
     float gx = x->grad[0];
 
-    pico_free(x);
-    arena_ctx_pop();
-    arena_destroy(ar);
+    pico_context_destroy(&ctx);
 
     ASSERT_TRUE(NEAR(gx, 1.0f));
 }

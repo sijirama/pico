@@ -18,20 +18,22 @@ SIMD-vectorized math, arena-allocated graphs — not just correct.
 
 int main(void) {
     pico_init();
+    struct PicoContext ctx = pico_context_init();
 
     int64_t shape[] = {3};
     float values[] = {1.0f, 2.0f, 3.0f};
 
-    struct PicoTensor* x = pico_tensor_from_data(NULL, shape, 1, values);
-    struct PicoTensor* two = pico_tensor_from_scalar(NULL, 2.0f);
-    struct PicoTensor* y = pico_mul(NULL, x, two);
-    struct PicoTensor* z = pico_sqrt(NULL, y);
+    struct PicoTensor* x = pico_tensor_from_data(&ctx, shape, 1, values);
+    struct PicoTensor* two = pico_tensor_from_scalar(&ctx, 2.0f);
+    struct PicoTensor* y = pico_mul(&ctx, x, two);
+    struct PicoTensor* z = pico_sqrt(&ctx, y);
 
     pico_tensor_print(z);
     // example output:
     // PicoTensor(shape=[3], numel=3)
     // [1.41421, 2, 2.44949]
 
+    pico_context_destroy(&ctx);
     pico_shutdown();
     return 0;
 }

@@ -35,25 +35,26 @@ Two lifetimes ⇒ **two memory regions.**
      grads). Wiped once per step.
 
 3. **Where a new tensor is born is decided by *which function creates it*:**
-   - `pico_param(...)` → **persistent** region. Created **once**, before the loop.
+   - `pico_param(&ctx, ...)` → **persistent** region. Created **once**, before the loop.
    - any op (`matmul`, `add`, `relu`, …) → the **current temp arena**.
    - A tensor's region is **implicit in where its bytes live** — not a property it
      reasons about.
 
-4. **The temp arena uses a "current arena" context.** Op outputs always go to the
-   active arena (`use_arena(a)` / an implicit current arena). Ops never take an
-   arena parameter, so nesting stays clean. (Single-threaded for now; thread-local
-   if pico ever goes multi-threaded.)
+4. **The temp arena lives inside `PicoContext`.** Op outputs always go to the
+   arena owned by the ctx passed into the op. Ops take ctx first, so nesting stays
+   explicit without passing the raw allocator everywhere.
    - *Why not inherit the arena from a parent?* Because `matmul(x, w)` mixes a
      transient input and a persistent weight — the output is **always** transient
      regardless, so "which parent's arena?" is the wrong question. All op outputs
-     are transient → all go to the one active arena.
+     are transient → all go to the ctx arena for this step/session.
 
 5. **Freeing:**
    - **Transient:** `arena_reset(arena)` once per step. It reclaims the whole block
      by moving the arena's offset back to 0 — it **never inspects individual
      tensors**. All intermediates vanish at once.
-   - **Persistent:** `pico_free(t)` on params you hold pointers to, at end of run.
+   - **Persistent:** ctx owns tensors created with `pico_param(&ctx, ...)`.
+     `pico_context_destroy(&ctx)` frees any registered params still alive.
+     Normal user code should not free params one by one.
 
 6. **The optimizer mutates weights in place.** `w.data -= lr * w.grad` — no new
    allocation. (So: **return-new** = forward graph in the arena; **in-place
@@ -63,44 +64,46 @@ Two lifetimes ⇒ **two memory regions.**
    (the optimizer reads it after backward); an intermediate's grad is in the arena
    (dies with the step). No special handling — grad piggybacks on its tensor.
 
-8. **A small flag marks persistent vs arena** (a `uint8_t` in the struct — free, it
-   sits in the struct's existing trailing padding). It is **not load-bearing**:
-   region is already implicit in where memory lives. Its *only* job is a **safety
-   guard** so `pico_free(t)` can refuse/no-op on an arena tensor instead of
-   corrupting the arena with a stray `free()`. (Could be a `flags` byte for future
-   bits like `is_leaf` — all free in the padding.)
+8. **A storage enum marks heap vs arena tensors.** The enum is not the real owner;
+   ownership still comes from where the bytes live. It exists so cleanup code can
+   say `PICO_TENSOR_STORAGE_HEAP` or `PICO_TENSOR_STORAGE_ARENA` instead of
+   hiding that behind a vague persistent flag.
 
 ## What the user writes (the contract in practice)
 ```text
-arena = arena_create(BIG)
+ctx = pico_context_init()
 
-w = pico_param(shape)          // persistent, made ONCE
-b = pico_param(shape)
+w = pico_param(&ctx, shape)    // persistent, made ONCE
+b = pico_param(&ctx, shape)
 
 for step in 1..N:
-    use_arena(arena)           // current temp arena = this
+    h    = matmul(&ctx, x, w)  //  -> ctx arena
+    h    = add(&ctx, h, b)     //  -> ctx arena
+    pred = relu(&ctx, h)       //  -> ctx arena
+    loss = mse(&ctx, pred, y)  //  -> ctx arena
 
-    h    = matmul(x, w)        //  -> arena
-    h    = add(h, b)           //  -> arena
-    pred = relu(h)             //  -> arena
-    loss = mse(pred, y)        //  -> arena
-
-    backward(loss)             // intermediate grads -> arena; w/b grads -> persistent
+    backward(&ctx, loss)       // intermediate grads -> arena; w/b grads -> persistent
 
     sgd_step(w, lr)            // in-place on persistent
     sgd_step(b, lr)
 
-    arena_reset(arena)         // wipes ALL intermediates; w, b untouched
+    arena_reset(ctx.arena)     // wipes ALL intermediates; w, b untouched
+
+pico_context_destroy(&ctx)     // frees remaining params and the arena
 ```
 
 ## Consequences / rules of thumb
 - Never `free()` an arena tensor. Reset the arena.
 - Never put a param in the temp arena (reset would kill it mid-training).
 - Don't hold a pointer to an intermediate across an `arena_reset()` — it's freed.
-- Op signatures take only real inputs (`add(a, b)`), never an arena or an `out`.
+- Modules do not own params. `linear_free()` frees the layer shell only; ctx owns
+  the weights and bias.
+- Op signatures take ctx plus real inputs (`add(&ctx, a, b)`), never a raw arena
+  or an `out`.
 
 ## Open / deferred
 - Persistent region: plain `malloc` per param vs a persistent pool — either works;
   decide when it matters.
-- Multi-threading: the "current arena" becomes thread-local. Deferred.
+- Multi-threading: each worker needs its own ctx/arena or a clear arena handoff.
+  Deferred.
 - GPU: device dispatch (the old `ops` vtable idea) returns here later.

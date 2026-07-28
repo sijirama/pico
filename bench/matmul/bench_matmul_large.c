@@ -10,6 +10,7 @@
 #include <time.h>
 
 #include "global.h"
+#include "ctx.h"
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
@@ -98,10 +99,11 @@ int main(void) {
         int64_t sa[] = {shape.m, shape.k};
         int64_t sb[] = {shape.k, shape.n};
         int64_t so[] = {shape.m, shape.n};
+        struct PicoContext ctx = pico_context_init();
 
-        struct PicoTensor* a = pico_param(sa, 2);
-        struct PicoTensor* b = pico_param(sb, 2);
-        struct PicoTensor* out = pico_param(so, 2);
+        struct PicoTensor* a = pico_param(&ctx, sa, 2);
+        struct PicoTensor* b = pico_param(&ctx, sb, 2);
+        struct PicoTensor* out = pico_param(&ctx, so, 2);
         struct PicoTensor* ref = NULL;
 
         fill_tensor(a, 13, 0.25f);
@@ -109,7 +111,7 @@ int main(void) {
 
         float diff = 0.0f;
         if(shape.check_scalar) {
-            ref = pico_param(so, 2);
+            ref = pico_param(&ctx, so, 2);
             memset(ref->data, 0, (size_t)ref->numel * sizeof(float));
             pico_matmul_cpu_scalar(a, b, ref);
             memset(out->data, 0, (size_t)out->numel * sizeof(float));
@@ -124,11 +126,7 @@ int main(void) {
         printf("  %-22s %12.3f %12.2f %12.3e%s\n", shape.name, avx_t * 1e3, avx_g,
                diff, shape.check_scalar && diff > TOL ? " MISMATCH" : "");
 
-        pico_free(a);
-        pico_free(b);
-        pico_free(out);
-        if(ref != NULL)
-            pico_free(ref);
+        pico_context_destroy(&ctx);
     }
 
     printf("\n");

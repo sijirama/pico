@@ -26,6 +26,7 @@
 #endif
 
 #include "global.h"
+#include "ctx.h"
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
@@ -201,17 +202,18 @@ int main(void) {
         int64_t sa[] = {shape.m, shape.k};
         int64_t sb[] = {shape.k, shape.n};
         int64_t so[] = {shape.m, shape.n};
+        struct PicoContext ctx = pico_context_init();
 
-        struct PicoTensor* a = pico_param(sa, 2);
-        struct PicoTensor* b = pico_param(sb, 2);
-        struct PicoTensor* ref = pico_param(so, 2);
+        struct PicoTensor* a = pico_param(&ctx, sa, 2);
+        struct PicoTensor* b = pico_param(&ctx, sb, 2);
+        struct PicoTensor* ref = pico_param(&ctx, so, 2);
         struct PicoTensor* outs[n_strats];
         struct stats results[n_strats];
 
         fill_tensor(a, 13, 0.25f);
         fill_tensor(b, 7, 0.5f);
         for(int st = 0; st < n_strats; st++) {
-            outs[st] = pico_param(so, 2);
+            outs[st] = pico_param(&ctx, so, 2);
         }
 
 #ifdef USE_CBLAS
@@ -244,12 +246,7 @@ int main(void) {
                    gflops(flops, results[st].min), diff, suffix);
         }
 
-        pico_free(a);
-        pico_free(b);
-        pico_free(ref);
-        for(int st = 0; st < n_strats; st++) {
-            pico_free(outs[st]);
-        }
+        pico_context_destroy(&ctx);
     }
 
     printf("\n");

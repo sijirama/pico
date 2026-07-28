@@ -5,12 +5,16 @@
 #include <stdbool.h>
 #include "arena.h"
 
+struct PicoContext;
+
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
 typedef enum { CPU, GPU } PicoBackend;
 
-// INFO: PicoTensor is only the view/metadata plus pointers to storage. ownership
-// depends on is_persistent: params own heap memory, temp tensors point into an
-// arena and are freed by arena reset/destroy.
+enum PicoTensorStorage { PICO_TENSOR_STORAGE_ARENA, PICO_TENSOR_STORAGE_HEAP };
+
+// INFO: PicoTensor is only the view/metadata plus pointers to storage. params
+// use heap storage and ctx owns them. temp tensors use arena storage and die
+// when the ctx arena is reset or destroyed.
 struct PicoTensor {
     int64_t* shape;
     int64_t* strides;
@@ -20,30 +24,31 @@ struct PicoTensor {
     struct PicoTensor** parents;
     int64_t numel;
     PicoBackend backend;
+    enum PicoTensorStorage storage;
     uint8_t ndim;
     uint8_t num_parents;
-    uint8_t is_persistent;  // 1 => heap-backed param, 0 => arena-backed temp
 };
 
-void pico_backward(struct Arena* arena, struct PicoTensor* entry);
+void pico_backward(struct PicoContext* ctx, struct PicoTensor* entry);
 
-// INFO: params are persistent model/data tensors. use pico_free on these.
-struct PicoTensor* pico_param(int64_t* shape, uint8_t ndim);
+// INFO: params are ctx-owned heap tensors. they survive arena resets.
+struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 
 // INFO: create_tensor is the temp constructor. ops use this for graph outputs,
 // so the result is owned by the arena and pico_free intentionally ignores it.
-struct PicoTensor* pico_create_tensor(struct Arena* arena, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_create_tensor(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 
 // a 1-element tensor (shape {1}) holding a single scalar. broadcasts against any
-// shape, so you can do pico_mul(NULL, pico_tensor_from_scalar(NULL, 2.0f), t).
-// NULL means use the current ctx arena.
-struct PicoTensor* pico_tensor_from_scalar(struct Arena* arena, float value);
+// shape, so you can do pico_mul(ctx, pico_tensor_from_scalar(ctx, 2.0f), t).
+struct PicoTensor* pico_tensor_from_scalar(struct PicoContext* ctx, float value);
 
 // INFO: copies data into a new arena tensor. it does not borrow `data`, so stack
 // arrays and short-lived buffers are safe to pass here.
-struct PicoTensor* pico_tensor_from_data(struct Arena* arena, int64_t* shape, uint8_t ndim, const float* data);
+struct PicoTensor* pico_tensor_from_data(struct PicoContext* ctx, int64_t* shape, uint8_t ndim, const float* data);
 
-void pico_free(struct PicoTensor* tensor);
+// INFO: internal cleanup helper used by PicoContext. user code should destroy
+// the owning context instead of freeing tensors one by one.
+void pico_tensor_free_heap(struct PicoTensor* tensor);
 
 // pretty-print a tensor's shape + data, nested by shape (respects strides).
 void pico_tensor_print(struct PicoTensor* t);
@@ -58,14 +63,14 @@ void pico_transpose_reshape(struct PicoTensor* tensor, int64_t* shape, int ndim)
 
 struct PicoTensor* pico_transpose_clone(struct PicoTensor* tensor);
 
-struct PicoTensor* pico_cat(struct Arena* arena, struct PicoTensor* a, struct PicoTensor* b, int dim);
+struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struct PicoTensor* b, int dim);
 
 // returns a tensor filled with random numbers from a uniform distribution on the interval ([0,1])
-struct PicoTensor* pico_rand(struct Arena* arena, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_rand(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 
 // returns a tensor filled with random numbers drawn from a standard normal distribution (Gaussian
 // distribution) with a mean of 0 and a variance (and standard deviation) of 1
-struct PicoTensor* pico_randn(struct Arena* arena, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_randn(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 
 // ============================= helpers
 

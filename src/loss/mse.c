@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "arena.h"
+#include "ctx.h"
 #include "loss.h"
 #include "loss/autograd.h"
 #include "tensor.h"
@@ -12,8 +13,8 @@ void pico_mse_loss_mean(struct PicoTensor* out, struct PicoTensor* prediction,
 void pico_mse_loss_sum(struct PicoTensor* out, struct PicoTensor* prediction,
                        struct PicoTensor* actuals);
 
-struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductionType reduction) {
-    arena = arena_resolve(arena);
+struct PicoMSELoss* pico_mse_loss_init(struct PicoContext* ctx, enum PicoMSEReductionType reduction) {
+    struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for mse loss allocation\n");
         return NULL;
@@ -24,7 +25,7 @@ struct PicoMSELoss* pico_mse_loss_init(struct Arena* arena, enum PicoMSEReductio
     return mse;
 }
 
-struct PicoTensor* pico_mse_loss(struct Arena* arena, struct PicoMSELoss* mse, struct PicoTensor* predictions,
+struct PicoTensor* pico_mse_loss(struct PicoContext* ctx, struct PicoMSELoss* mse, struct PicoTensor* predictions,
                                  struct PicoTensor* actuals) {
     if(!pico_tensor_shapes_are_equal(predictions, actuals)) {
         fprintf(stderr, "[Pico] Error: MSE predictions and actuals must have the same shape\n");
@@ -36,12 +37,12 @@ struct PicoTensor* pico_mse_loss(struct Arena* arena, struct PicoMSELoss* mse, s
         return NULL;
     }
 
-    arena = arena_resolve(arena);
+    struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for mse loss output allocation\n");
         return NULL;
     }
-    struct PicoTensor* out = pico_create_tensor(arena, predictions->shape, predictions->ndim);
+    struct PicoTensor* out = pico_create_tensor(ctx, predictions->shape, predictions->ndim);
 
     switch(mse->reduction) {
         case SUM:

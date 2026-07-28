@@ -1,13 +1,15 @@
 #include "linear.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "arena.h"
+#include "ctx.h"
 #include "ops.h"
 #include "tensor.h"
 
-struct PicoLinear* pico_nn_linear_init(struct Arena* arena, int in_features, int out_features, bool bias) {
-    arena = arena_resolve(arena);
+struct PicoLinear* pico_nn_linear_init(struct PicoContext* ctx, int in_features, int out_features, bool bias) {
+    struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for linear init allocation\n");
         return NULL;
@@ -20,11 +22,11 @@ struct PicoLinear* pico_nn_linear_init(struct Arena* arena, int in_features, int
     int64_t* bias_shape = arena_alloc(arena, sizeof(int64_t) * 2);
     bias_shape[0] = out_features;
 
-    struct PicoTensor* weights_t = pico_param(res_shape, 2);
+    struct PicoTensor* weights_t = pico_param(ctx, res_shape, 2);
     struct PicoTensor* bias_t = NULL;
 
     if(bias == true) {
-        bias_t = pico_param(bias_shape, 1);
+        bias_t = pico_param(ctx, bias_shape, 1);
     }
 
     struct PicoLinear* linear = malloc(sizeof(struct PicoLinear));
@@ -37,7 +39,7 @@ struct PicoLinear* pico_nn_linear_init(struct Arena* arena, int in_features, int
     return linear;
 }
 
-struct PicoTensor* pico_nn_linear_forward(struct Arena* arena, struct PicoLinear* layer, struct PicoTensor* input) {
+struct PicoTensor* pico_nn_linear_forward(struct PicoContext* ctx, struct PicoLinear* layer, struct PicoTensor* input) {
     //
     //
     //
@@ -51,16 +53,15 @@ struct PicoTensor* pico_nn_linear_forward(struct Arena* arena, struct PicoLinear
         return NULL;
     }
 
-    arena = arena_resolve(arena);
-    if(arena == NULL) {
+    if(pico_context_arena(ctx) == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for linear forward allocation\n");
         return NULL;
     }
 
-    struct PicoTensor* output = pico_matmul(arena, input, layer->weights);
+    struct PicoTensor* output = pico_matmul(ctx, input, layer->weights);
 
     if(layer->bias != NULL) {
-        output = pico_add(arena, output, layer->bias);
+        output = pico_add(ctx, output, layer->bias);
     }
 
     return output;
@@ -71,7 +72,5 @@ void pico_nn_linear_free(struct PicoLinear* linear) {
         return;
     }
 
-    pico_free(linear->weights);
-    pico_free(linear->bias);
     free(linear);
 }
