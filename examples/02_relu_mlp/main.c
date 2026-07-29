@@ -105,10 +105,8 @@ int main(void) {
     struct PicoTensor* final_loss = pico_mse_loss(&train_ctx, &mse, final_pred, y);
 
     printf("\nfinal loss: %.6f\n", final_loss->data[0]);
-    printf("\nfirst four predictions:\n");
-    for(int i = 0; i < 4; i++) {
-        printf("  row %d -> pred %.4f, target %.4f\n", i, final_pred->data[i], y->data[i]);
-    }
+    printf("\nfinal predictions:\n");
+    pico_tensor_print(final_pred);
 
     pico_optim_sgd_free(opt);
     pico_nn_linear_free(l1);
