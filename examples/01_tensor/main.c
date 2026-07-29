@@ -15,23 +15,14 @@ int main(void) {
     struct PicoTensor* y = pico_mul(&ctx, x, scale);
     struct PicoTensor* z = pico_sqrt(&ctx, y);
 
-    printf("x: ");
-    for(int64_t i = 0; i < x->numel; i++) {
-        printf("%f ", x->data[i]);
-    }
-    printf("\n");
+    printf("x:\n");
+    pico_tensor_print(x);
 
-    printf("y = x * 2: ");
-    for(int64_t i = 0; i < y->numel; i++) {
-        printf("%f ", y->data[i]);
-    }
-    printf("\n");
+    printf("y = x * 2:\n");
+    pico_tensor_print(y);
 
-    printf("sqrt(y): ");
-    for(int64_t i = 0; i < z->numel; i++) {
-        printf("%f ", z->data[i]);
-    }
-    printf("\n");
+    printf("sqrt(y):\n");
+    pico_tensor_print(z);
 
     pico_context_destroy(&ctx);
     pico_shutdown();

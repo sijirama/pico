@@ -13,3 +13,4 @@
 #include "loss/loss.h"
 #include "nn/linear.h"
 #include "optim/optim.h"
+#include "data/data.h"
