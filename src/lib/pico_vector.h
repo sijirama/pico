@@ -1,17 +1,18 @@
 #pragma once
 
 #include <stdint.h>
-
-#include "tensor.h"
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 struct PicoVec {
-    struct PicoTensor** data;  // Pointer to the array of picotensor pointers
-    size_t size;               // Current number of elements stored
-    size_t capacity;           // Total capacity allocated
+    void** data;      // pointer array, callers own the actual objects
+    size_t size;      // Current number of elements stored
+    size_t capacity;  // Total capacity allocated
 };
 
 static inline void pico_vec_init(struct PicoVec* a, size_t initialCapacity) {
-    a->data = malloc(initialCapacity * sizeof(struct PicoTensor*));
+    a->data = malloc(initialCapacity * sizeof(void*));
     if(a->data == NULL) {
         perror("Allocation failed");
         exit(EXIT_FAILURE);
@@ -20,14 +21,13 @@ static inline void pico_vec_init(struct PicoVec* a, size_t initialCapacity) {
     a->capacity = initialCapacity;
 }
 
-static inline void pico_vec_push(struct PicoVec* a,
-                                               struct PicoTensor* element) {
+static inline void pico_vec_push(struct PicoVec* a, void* element) {
     if(a->size == a->capacity) {
         // Double the capacity when full
         size_t newCapacity = a->capacity * 2;
 
         // Use a temporary pointer to avoid memory loss if realloc fails
-        struct PicoTensor** temp = realloc(a->data, newCapacity * sizeof(struct PicoTensor*));
+        void** temp = realloc(a->data, newCapacity * sizeof(void*));
         if(temp == NULL) {
             perror("Reallocation failed");
             // Original memory is still valid, handle gracefully or exit
@@ -41,13 +41,12 @@ static inline void pico_vec_push(struct PicoVec* a,
     a->data[a->size++] = element;
 }
 
-static inline int pico_vec_find(struct PicoVec* a,
-                                              struct PicoTensor* element) {
+static inline int pico_vec_find(struct PicoVec* a, void* element) {
     if(a == NULL) {
         return -2;
     }
-    for (int i = 0; i < a->size; i++) {
-        if(a->data[i] == element){
+    for(int i = 0; i < a->size; i++) {
+        if(a->data[i] == element) {
             return i;
         }
     }
@@ -62,7 +61,7 @@ static inline void pico_vec_reverse(struct PicoVec* a) {
     size_t i = 0;
     size_t j = a->size - 1;
     while(i < j) {
-        struct PicoTensor* tmp = a->data[i];
+        void* tmp = a->data[i];
         a->data[i] = a->data[j];
         a->data[j] = tmp;
         i++;

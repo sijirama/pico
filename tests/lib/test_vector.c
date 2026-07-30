@@ -1,11 +1,12 @@
 /*
- * Tests for the PicoVec (dynamic array of PicoTensor*).
+ * Tests for the PicoVec (dynamic array of pointers).
  * NOTE: no UTEST_MAIN here, test_basic.c owns main + UTEST_STATE.
- * We only store/compare the POINTERS, so dummy stack tensors are fine
+ * We only store/compare the POINTERS, so dummy stack ints are fine
  * (the vector never dereferences them).
  */
 
 #include "lib/pico_vector.h"
+#include "tensor.h"
 #include "utest.h"
 
 // init should set size=0, the requested capacity, and a live buffer
@@ -20,7 +21,7 @@ UTEST(vector, init_sets_fields) {
 
 // inserts land in order and bump size
 UTEST(vector, insert_stores_in_order) {
-    struct PicoTensor t0, t1, t2;
+    int t0, t1, t2;
     struct PicoVec v;
     pico_vec_init(&v, 4);
 
@@ -39,7 +40,7 @@ UTEST(vector, insert_stores_in_order) {
 // inserting past the initial capacity should grow (realloc) and keep every
 // element intact, in order — this is the case the topo list actually hits
 UTEST(vector, grows_and_preserves_elements) {
-    struct PicoTensor nodes[5];
+    int nodes[5];
     struct PicoVec v;
     pico_vec_init(&v, 2);  // deliberately small
 
@@ -69,7 +70,7 @@ UTEST(vector, free_resets_fields) {
 
 // search returns the index of a present element
 UTEST(vector, search_finds_element) {
-    struct PicoTensor t0, t1, t2;
+    int t0, t1, t2;
     struct PicoVec v;
     pico_vec_init(&v, 4);
     pico_vec_push(&v, &t0);
@@ -85,7 +86,7 @@ UTEST(vector, search_finds_element) {
 
 // search returns -1 for an absent element (and for an empty vector)
 UTEST(vector, search_missing_returns_neg1) {
-    struct PicoTensor t0, other;
+    int t0, other;
     struct PicoVec v;
     pico_vec_init(&v, 4);
 
@@ -100,7 +101,7 @@ UTEST(vector, search_missing_returns_neg1) {
 
 // reversing an empty or single-element vector is a safe no-op
 UTEST(vector, reverse_empty_and_single) {
-    struct PicoTensor t0;
+    int t0;
     struct PicoVec v;
 
     pico_vec_init(&v, 4);
@@ -117,7 +118,7 @@ UTEST(vector, reverse_empty_and_single) {
 
 // reverse flips the order (even count)
 UTEST(vector, reverse_even) {
-    struct PicoTensor a, b, c, d;
+    int a, b, c, d;
     struct PicoVec v;
     pico_vec_init(&v, 4);
     pico_vec_push(&v, &a);
@@ -137,7 +138,7 @@ UTEST(vector, reverse_even) {
 
 // reverse flips the order (odd count -> middle stays put)
 UTEST(vector, reverse_odd) {
-    struct PicoTensor a, b, c;
+    int a, b, c;
     struct PicoVec v;
     pico_vec_init(&v, 4);
     pico_vec_push(&v, &a);
@@ -155,7 +156,7 @@ UTEST(vector, reverse_odd) {
 
 // reversing twice gets you back to the original order
 UTEST(vector, reverse_twice_is_identity) {
-    struct PicoTensor a, b, c;
+    int a, b, c;
     struct PicoVec v;
     pico_vec_init(&v, 4);
     pico_vec_push(&v, &a);
@@ -168,6 +169,85 @@ UTEST(vector, reverse_twice_is_identity) {
     ASSERT_TRUE(v.data[0] == &a);
     ASSERT_TRUE(v.data[1] == &b);
     ASSERT_TRUE(v.data[2] == &c);
+
+    pico_vec_free(&v);
+}
+
+// generic pointer storage: strings stay as char* pointers.
+UTEST(vector, stores_strings) {
+    struct PicoVec v;
+    pico_vec_init(&v, 2);
+
+    char* hello = "hello";
+    char* pico = "pico";
+    char* data = "data";
+
+    pico_vec_push(&v, hello);
+    pico_vec_push(&v, pico);
+    pico_vec_push(&v, data);
+
+    ASSERT_TRUE(v.size == 3);
+    ASSERT_TRUE(v.data[0] == hello);
+    ASSERT_TRUE(v.data[1] == pico);
+    ASSERT_TRUE(v.data[2] == data);
+    ASSERT_TRUE(pico_vec_find(&v, pico) == 1);
+
+    pico_vec_free(&v);
+}
+
+// generic pointer storage: tensors are just another pointer type to PicoVec.
+UTEST(vector, stores_tensor_pointers) {
+    struct PicoTensor t0, t1;
+    struct PicoVec v;
+    pico_vec_init(&v, 2);
+
+    pico_vec_push(&v, &t0);
+    pico_vec_push(&v, &t1);
+
+    ASSERT_TRUE(v.data[0] == &t0);
+    ASSERT_TRUE(v.data[1] == &t1);
+    ASSERT_TRUE(pico_vec_find(&v, &t1) == 1);
+
+    pico_vec_free(&v);
+}
+
+// generic pointer storage: floats work when we store their addresses.
+UTEST(vector, stores_float_pointers) {
+    float a = 1.5f;
+    float b = 2.5f;
+    float c = 3.5f;
+    struct PicoVec v;
+    pico_vec_init(&v, 2);
+
+    pico_vec_push(&v, &a);
+    pico_vec_push(&v, &b);
+    pico_vec_push(&v, &c);
+
+    ASSERT_TRUE(*(float*)v.data[0] == 1.5f);
+    ASSERT_TRUE(*(float*)v.data[1] == 2.5f);
+    ASSERT_TRUE(*(float*)v.data[2] == 3.5f);
+
+    pico_vec_free(&v);
+}
+
+// mixed pointers are allowed because PicoVec does not inspect or own elements.
+UTEST(vector, stores_mixed_pointer_types) {
+    int count = 7;
+    float lr = 0.01f;
+    char* name = "sgd";
+    struct PicoTensor tensor;
+    struct PicoVec v;
+    pico_vec_init(&v, 2);
+
+    pico_vec_push(&v, &count);
+    pico_vec_push(&v, &lr);
+    pico_vec_push(&v, name);
+    pico_vec_push(&v, &tensor);
+
+    ASSERT_TRUE(*(int*)v.data[0] == 7);
+    ASSERT_TRUE(*(float*)v.data[1] == 0.01f);
+    ASSERT_TRUE(v.data[2] == name);
+    ASSERT_TRUE(v.data[3] == &tensor);
 
     pico_vec_free(&v);
 }
