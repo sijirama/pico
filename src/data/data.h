@@ -30,17 +30,27 @@ struct DataBatch {
     size_t size;
 };
 
+// INFO: this is the dataset contract. any dataset type can work with pico as
+// long as it can tell us its length, return one item by index, and clean up any
+// private state it owns.
 struct DatasetVTable {
     size_t (*len)(const struct Dataset* self);
     struct DatasetItem (*get)(const struct Dataset* self, size_t idx);
     void (*free)(struct Dataset* self);
 };
 
+// INFO: funcs is the public interface, data is the private body. for a text
+// dataset this can point to TextDatasetData, for csv it can point to
+// CsvDatasetData, for images it can point to ImageDatasetData. pico does not
+// care about the real type, only the dataset functions do.
 struct Dataset {
     const struct DatasetVTable* funcs;
     void* data;
 };
 
+// INFO: dataloader does not know if the data came from text, csv, images, or
+// a remote source. it only asks the dataset for items and groups them together
+// into batches.
 struct DataLoader {
     struct PicoContext* ctx;
     struct Dataset* dataset;

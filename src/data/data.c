@@ -7,9 +7,9 @@ DataLoader: wraps an iterable around the Dataset to enable easy access to the sa
 
  */
 
-#include <stdlib.h>
-
 #include "data/data.h"
+
+#include <stdlib.h>
 
 static void shuffle_indices(size_t* indices, size_t n) {
     if(n < 2) {
@@ -64,8 +64,8 @@ struct DataLoader* pico_dataloader_init(struct PicoContext* ctx, struct Dataset*
 // how a sample is created, the loader only decides which indices belong together.
 struct DataBatch* pico_dataloader_next(struct DataLoader* loader) {
     if(loader == NULL || loader->ctx == NULL || loader->ctx->arena == NULL || loader->dataset == NULL ||
-       loader->dataset->funcs == NULL || loader->dataset->funcs->len == NULL ||
-       loader->dataset->funcs->get == NULL || loader->indices == NULL) {
+       loader->dataset->funcs == NULL || loader->dataset->funcs->len == NULL || loader->dataset->funcs->get == NULL ||
+       loader->indices == NULL) {
         return NULL;
     }
 
@@ -88,6 +88,7 @@ struct DataBatch* pico_dataloader_next(struct DataLoader* loader) {
     }
     batch->size = batch_size;
 
+    // INFO: unroll or something, multithread
     for(size_t i = 0; i < batch_size; i++) {
         size_t dataset_idx = loader->indices[loader->cursor + i];
         batch->items[i] = loader->dataset->funcs->get(loader->dataset, dataset_idx);

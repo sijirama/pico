@@ -22,6 +22,14 @@
 - [x] Add tensor batching helpers.
   - Make it easy to turn dataset samples into input/target tensors.
 
+## 2b. Causal language modeling path
+
+- [ ] Add a next-token prediction dataset.
+  - Turn token ids into shifted `x` / `y` windows for GPT-style training.
+
+- [ ] Add a subword tokenizer.
+  - Start with WordPiece or BPE, then plug it into the same dataset/dataloader path.
+
 ## 3. Saving and loading
 
 - [ ] Add tensor save/load.
