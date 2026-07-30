@@ -4,6 +4,8 @@
 #include "arena.h"
 #include "lib/pico_vector.h"
 
+struct PicoTensor;
+
 enum PicoMode { PICO_TRAIN, PICO_EVAL };
 
 struct PicoContext {

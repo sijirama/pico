@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #include "pico.h"
+#include "tokens/wordbased-tk.h"
 #include "utest.h"
 
 struct TestDatasetData {
@@ -56,6 +57,72 @@ static void fill_test_tensors(struct PicoContext* ctx, struct PicoTensor** xs, s
         xs[i] = pico_tensor_from_data(ctx, shape, 1, x_value);
         ys[i] = pico_tensor_from_data(ctx, shape, 1, y_value);
     }
+}
+
+struct TokenizedTextDatasetData {
+    struct PicoContext* ctx;
+    struct Tokenizer* tokenizer;
+    const char** texts;
+    const float* labels;
+    size_t len;
+};
+
+static void free_wordbased_map_for_data_test(struct Tokenizer* tokenizer) {
+    if(tokenizer == NULL || tokenizer->data == NULL) {
+        return;
+    }
+
+    struct WordBasedPicoTKData* data = (struct WordBasedPicoTKData*)tokenizer->data;
+    pico_hashmap_free(data->word_to_id_map);
+    data->word_to_id_map = NULL;
+}
+
+static size_t tokenized_text_dataset_len(const struct Dataset* dataset) {
+    struct TokenizedTextDatasetData* data = (struct TokenizedTextDatasetData*)dataset->data;
+    return data->len;
+}
+
+static struct DatasetItem tokenized_text_dataset_get(const struct Dataset* dataset, size_t idx) {
+    struct TokenizedTextDatasetData* data = (struct TokenizedTextDatasetData*)dataset->data;
+    size_t* ids = data->tokenizer->methods->encode(data->tokenizer, data->texts[idx]);
+
+    size_t token_count = 0;
+    while(ids[token_count] != (size_t)-1) {
+        token_count++;
+    }
+
+    float* token_values = arena_alloc(data->ctx->arena, sizeof(float) * token_count);
+    for(size_t i = 0; i < token_count; i++) {
+        token_values[i] = (float)ids[i];
+    }
+
+    int64_t x_shape[] = {(int64_t)token_count};
+    int64_t y_shape[] = {1};
+    float y_value[] = {data->labels[idx]};
+
+    struct DatasetItem item = {
+        .x = pico_tensor_from_data(data->ctx, x_shape, 1, token_values),
+        .y = pico_tensor_from_data(data->ctx, y_shape, 1, y_value),
+    };
+    return item;
+}
+
+static void tokenized_text_dataset_free(struct Dataset* dataset) {
+    (void)dataset;
+}
+
+static const struct DatasetVTable TOKENIZED_TEXT_DATASET_FUNCS = {
+    .len = tokenized_text_dataset_len,
+    .get = tokenized_text_dataset_get,
+    .free = tokenized_text_dataset_free,
+};
+
+static struct Dataset make_tokenized_text_dataset(struct TokenizedTextDatasetData* data) {
+    struct Dataset dataset = {
+        .funcs = &TOKENIZED_TEXT_DATASET_FUNCS,
+        .data = data,
+    };
+    return dataset;
 }
 
 UTEST(dataloader, init_rejects_invalid_inputs) {
@@ -179,4 +246,56 @@ UTEST(dataloader, shuffle_keeps_index_permutation) {
 
 UTEST(dataloader, reset_null_guard_returns) {
     pico_dataloader_reset(NULL);
+}
+
+UTEST(dataloader, tokenized_text_dataset_batches_encoded_tensors) {
+    struct PicoContext ctx = pico_context_init();
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+
+    ASSERT_TRUE(tokenizer != NULL);
+    ASSERT_TRUE(pico_wordbased_add_word(tokenizer, "hello"));
+    ASSERT_TRUE(pico_wordbased_add_word(tokenizer, "world"));
+
+    const char* texts[] = {
+        "hello world",
+        "hello missing",
+        "world hello",
+    };
+    const float labels[] = {1.0f, 0.0f, 1.0f};
+
+    struct TokenizedTextDatasetData data = {
+        .ctx = &ctx,
+        .tokenizer = tokenizer,
+        .texts = texts,
+        .labels = labels,
+        .len = 3,
+    };
+    struct Dataset dataset = make_tokenized_text_dataset(&data);
+    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+
+    struct DataBatch* first = pico_dataloader_next(loader);
+    ASSERT_TRUE(first != NULL);
+    ASSERT_EQ(first->size, (size_t)2);
+
+    ASSERT_EQ(first->items[0].x->shape[0], (int64_t)2);
+    ASSERT_TRUE(first->items[0].x->data[0] == 1.0f);
+    ASSERT_TRUE(first->items[0].x->data[1] == 2.0f);
+    ASSERT_TRUE(first->items[0].y->data[0] == 1.0f);
+
+    ASSERT_EQ(first->items[1].x->shape[0], (int64_t)2);
+    ASSERT_TRUE(first->items[1].x->data[0] == 1.0f);
+    ASSERT_TRUE(first->items[1].x->data[1] == 0.0f);
+    ASSERT_TRUE(first->items[1].y->data[0] == 0.0f);
+
+    struct DataBatch* second = pico_dataloader_next(loader);
+    ASSERT_TRUE(second != NULL);
+    ASSERT_EQ(second->size, (size_t)1);
+    ASSERT_TRUE(second->items[0].x->data[0] == 2.0f);
+    ASSERT_TRUE(second->items[0].x->data[1] == 1.0f);
+    ASSERT_TRUE(second->items[0].y->data[0] == 1.0f);
+
+    ASSERT_TRUE(pico_dataloader_next(loader) == NULL);
+
+    free_wordbased_map_for_data_test(tokenizer);
+    pico_context_destroy(&ctx);
 }

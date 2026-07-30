@@ -1,0 +1,5 @@
+1	pico learns fast
+1	tensor data
+0	pico learns slow
+1	pico tensor data
+0	slow data

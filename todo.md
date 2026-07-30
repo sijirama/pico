@@ -13,13 +13,13 @@
 
 ## 2. Data input
 
-- [ ] Add a dataset abstraction.
+- [x] Add a dataset abstraction.
   - Start simple: length + get item.
 
-- [ ] Add a dataloader abstraction.
+- [x] Add a dataloader abstraction.
   - Batching, optional shuffle, and predictable iteration.
 
-- [ ] Add tensor batching helpers.
+- [x] Add tensor batching helpers.
   - Make it easy to turn dataset samples into input/target tensors.
 
 ## 3. Saving and loading
