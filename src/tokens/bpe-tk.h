@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <string.h>
@@ -7,14 +8,28 @@
 #include "arena.h"
 #include "ctx.h"
 #include "lib/pico_map.h"
+#include "lib/pico_vec_sort.h"
 #include "lib/pico_vector.h"
 #include "tokens/tokenizer.h"
 
+#define MAX_BPE_VOCAB_CAPACITY 1280
+
 struct BPEPicoTKData {
-    struct PicoHashMap* vocab;  // char * | size_t
+    struct PicoHashMap* corpus;  // char * | size_t
+    struct PicoVec* vocab;
+    int max_vocab_capacity;
 };
 
-static const struct TokenizerVTable BPE_TK_METHODS = {};
+static inline size_t pico_bpe_tk_len(const struct Tokenizer* self) {
+    if(!self || !self->data)
+        return 0;
+    const struct BPEPicoTKData* data = (const struct BPEPicoTKData*)self->data;
+    return data->corpus->size;
+}
+
+static const struct TokenizerVTable BPE_TK_METHODS = {
+    .len = pico_bpe_tk_len,
+};
 
 // ===================== these are util functions for the bpe to operate
 
@@ -65,7 +80,7 @@ static inline void bpe_ingest_text(struct Tokenizer* tokenizer, char* text_input
     }
 
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
-    if(data->vocab == NULL) {
+    if(data->corpus == NULL) {
         return;
     }
 
@@ -81,12 +96,12 @@ static inline void bpe_ingest_text(struct Tokenizer* tokenizer, char* text_input
     for(size_t i = 0; i < temp_container.size; i++) {
         current_string = (char*)temp_container.data[i];
         //
-        // if not in vocab, add token with freq 1
-        if(pico_hashmap_contains(data->vocab, current_string) == false) {
-            pico_hashmap_insert(data->vocab, current_string, (void*)(uintptr_t)1);
+        // if not in corpus, add token with freq 1
+        if(pico_hashmap_contains(data->corpus, current_string) == false) {
+            pico_hashmap_insert(data->corpus, current_string, (void*)(uintptr_t)1);
         } else {
-            // if in vocab, inccrement the value (the frequency)
-            struct PicoHashEntry* entry = pico_hashmap_find_entry(data->vocab, current_string);
+            // if in corpus, inccrement the value (the frequency)
+            struct PicoHashEntry* entry = pico_hashmap_find_entry(data->corpus, current_string);
             size_t new_freq = (size_t)(uintptr_t)entry->value + 1;
             entry->value = (void*)(uintptr_t)new_freq;
         }
@@ -98,8 +113,71 @@ static inline void bpe_ingest_text(struct Tokenizer* tokenizer, char* text_input
     pico_vec_free(&temp_container);
 }
 
+// train the vocab and add special tokens too
+static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
+    if(tokenizer == NULL || tokenizer->data == NULL) {
+        return;
+    }
+
+    // compute the base vocabulary, formed by all the characters used in the corpus:
+    struct PicoVec alphabet;
+    pico_vec_init(&alphabet, 30);
+
+    struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
+    if(data->corpus == NULL || data->vocab == NULL) {
+        pico_vec_free(&alphabet);
+        return;
+    }
+
+    struct PicoHashEntry entry;
+    bool seen_chars[256] = {0};
+    char* p;
+    for(size_t i = 0; i < data->corpus->capacity; i++) {
+        entry = data->corpus->entries[i];
+        if(!entry.occupied) {
+            continue;
+        }
+
+        p = entry.key;
+
+        while(*p != '\0') {
+            unsigned char current = (unsigned char)*p;
+            if(!seen_chars[current]) {          // if we didn't find the character
+                seen_chars[current] = true;
+                pico_vec_push(&alphabet, (void*)p);  // push to the alphabet vector
+            }
+            p++;  // Move to the next character
+        }
+    }
+
+    pico_vec_sort_chars(&alphabet);  // sort that alphavet vector pls
+
+    struct PicoVec special_tokens;
+    pico_vec_init(&special_tokens, 5);
+    pico_vec_push(&special_tokens, "<|endoftext|>");
+    pico_vec_push(&special_tokens, "<|unk|>");
+    pico_vec_push(&special_tokens, "<|pad|>");
+    pico_vec_push(&special_tokens, "<|bos|>");
+    pico_vec_push(&special_tokens, "<|eos|>");
+
+    struct PicoVec* next_vocab = pico_vec_append(&special_tokens, &alphabet);
+    if(next_vocab != NULL) {
+        pico_vec_free(data->vocab);
+        free(data->vocab);
+        data->vocab = next_vocab;
+    }
+
+    pico_vec_free(&special_tokens);
+    pico_vec_free(&alphabet);
+}
+
+
+static inline void bpe_train(struct Tokenizer* tokenizer) {
+    bpe_train_vocab(tokenizer); // train the vocab
+}
+
 // INFO: unlike the wordbased tokenizer, this tk is gonna initiate a tokenizer then have another function to fill in the
-// tokens, so this function will be to return a tokenizer, another function will be used to fill up the vocab and ids
+// tokens, so this function will be to return a tokenizer, another function will be used to fill up the corpus and ids
 static inline struct Tokenizer* pico_bpe_tk_init(struct PicoContext* context) {
     if(context == NULL || context->arena == NULL) {
         return NULL;
@@ -112,7 +190,18 @@ static inline struct Tokenizer* pico_bpe_tk_init(struct PicoContext* context) {
     }
 
     // init the data used in the fucking stuff i guess lol
-    data->vocab = pico_hashmap_init();
+    data->corpus = pico_hashmap_init();
+    data->vocab = malloc(sizeof(struct PicoVec));
+    if(data->corpus == NULL || data->vocab == NULL) {
+        if(data->corpus != NULL) {
+            pico_hashmap_free(data->corpus);
+        }
+        free(data->vocab);
+        return NULL;
+    }
+
+    pico_vec_init(data->vocab, 100);
+    data->max_vocab_capacity = MAX_BPE_VOCAB_CAPACITY;
 
     tokenizer->ctx = context;
     tokenizer->methods = &BPE_TK_METHODS;

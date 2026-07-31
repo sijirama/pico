@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -41,6 +42,54 @@ static inline void pico_vec_push(struct PicoVec* a, void* element) {
     a->data[a->size++] = element;
 }
 
+// INFO: shallow copy. the new vec owns a new pointer array, but the pointed-to
+// values are the same objects because PicoVec never owns element memory.
+static inline struct PicoVec pico_vec_copy(struct PicoVec* src) {
+    struct PicoVec copy = {0};
+    if(src == NULL) {
+        return copy;
+    }
+
+    size_t capacity = src->capacity > 0 ? src->capacity : 1;
+    pico_vec_init(&copy, capacity);
+    copy.size = src->size;
+
+    if(src->size > 0) {
+        memcpy(copy.data, src->data, sizeof(void*) * src->size);
+    }
+
+    return copy;
+}
+
+// INFO: shallow append. result contains the pointer values from a followed by
+// b, but it does not clone or own the actual elements.
+static inline struct PicoVec* pico_vec_append(struct PicoVec* a, struct PicoVec* b) {
+    struct PicoVec* out = malloc(sizeof(struct PicoVec));
+    if(out == NULL) {
+        perror("Allocation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    size_t a_size = a == NULL ? 0 : a->size;
+    size_t b_size = b == NULL ? 0 : b->size;
+    size_t total = a_size + b_size;
+    size_t capacity = total > 0 ? total : 1;
+
+    pico_vec_init(out, capacity);
+    out->size = total;
+
+    if(a_size > 0) {
+        memcpy(out->data, a->data, sizeof(void*) * a_size);
+    }
+
+    if(b_size > 0) {
+        memcpy(out->data + a_size, b->data, sizeof(void*) * b_size);
+    }
+
+    return out;
+}
+
+// can we make this faster ? i mean we have size so we can use a good search algo here ??
 static inline int pico_vec_find(struct PicoVec* a, void* element) {
     if(a == NULL) {
         return -2;

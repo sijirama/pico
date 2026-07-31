@@ -6,6 +6,7 @@
  */
 
 #include "lib/pico_vector.h"
+#include "lib/pico_vec_sort.h"
 #include "tensor.h"
 #include "utest.h"
 
@@ -248,6 +249,121 @@ UTEST(vector, stores_mixed_pointer_types) {
     ASSERT_TRUE(*(float*)v.data[1] == 0.01f);
     ASSERT_TRUE(v.data[2] == name);
     ASSERT_TRUE(v.data[3] == &tensor);
+
+    pico_vec_free(&v);
+}
+
+// copy duplicates the pointer array but keeps the same pointed-to values.
+UTEST(vector, copy_preserves_values_with_new_storage) {
+    int a, b, c;
+    struct PicoVec original;
+    pico_vec_init(&original, 4);
+    pico_vec_push(&original, &a);
+    pico_vec_push(&original, &b);
+    pico_vec_push(&original, &c);
+
+    struct PicoVec copy = pico_vec_copy(&original);
+
+    ASSERT_TRUE(copy.data != NULL);
+    ASSERT_TRUE(copy.data != original.data);
+    ASSERT_TRUE(copy.size == original.size);
+    ASSERT_TRUE(copy.capacity == original.capacity);
+    ASSERT_TRUE(copy.data[0] == &a);
+    ASSERT_TRUE(copy.data[1] == &b);
+    ASSERT_TRUE(copy.data[2] == &c);
+
+    copy.data[0] = &c;
+    ASSERT_TRUE(original.data[0] == &a);
+
+    pico_vec_free(&copy);
+    pico_vec_free(&original);
+}
+
+UTEST(vector, copy_null_returns_empty_vec) {
+    struct PicoVec copy = pico_vec_copy(NULL);
+
+    ASSERT_TRUE(copy.data == NULL);
+    ASSERT_TRUE(copy.size == 0);
+    ASSERT_TRUE(copy.capacity == 0);
+}
+
+// append creates a new vec with a followed by b.
+UTEST(vector, append_combines_two_vecs_in_order) {
+    int a, b, c, d;
+    struct PicoVec left, right;
+    pico_vec_init(&left, 2);
+    pico_vec_init(&right, 2);
+
+    pico_vec_push(&left, &a);
+    pico_vec_push(&left, &b);
+    pico_vec_push(&right, &c);
+    pico_vec_push(&right, &d);
+
+    struct PicoVec* joined = pico_vec_append(&left, &right);
+
+    ASSERT_TRUE(joined != NULL);
+    ASSERT_TRUE(joined->size == 4);
+    ASSERT_TRUE(joined->data[0] == &a);
+    ASSERT_TRUE(joined->data[1] == &b);
+    ASSERT_TRUE(joined->data[2] == &c);
+    ASSERT_TRUE(joined->data[3] == &d);
+
+    pico_vec_free(joined);
+    free(joined);
+    pico_vec_free(&right);
+    pico_vec_free(&left);
+}
+
+UTEST(vector, append_treats_null_as_empty) {
+    int a, b;
+    struct PicoVec right;
+    pico_vec_init(&right, 2);
+    pico_vec_push(&right, &a);
+    pico_vec_push(&right, &b);
+
+    struct PicoVec* joined = pico_vec_append(NULL, &right);
+
+    ASSERT_TRUE(joined != NULL);
+    ASSERT_TRUE(joined->size == 2);
+    ASSERT_TRUE(joined->data[0] == &a);
+    ASSERT_TRUE(joined->data[1] == &b);
+
+    pico_vec_free(joined);
+    free(joined);
+    pico_vec_free(&right);
+}
+
+UTEST(vector, sort_chars_orders_single_char_elements) {
+    char c = 'c';
+    char a = 'a';
+    char b = 'b';
+    struct PicoVec v;
+    pico_vec_init(&v, 3);
+    pico_vec_push(&v, &c);
+    pico_vec_push(&v, &a);
+    pico_vec_push(&v, &b);
+
+    pico_vec_sort_chars(&v);
+
+    ASSERT_TRUE(*(char*)v.data[0] == 'a');
+    ASSERT_TRUE(*(char*)v.data[1] == 'b');
+    ASSERT_TRUE(*(char*)v.data[2] == 'c');
+
+    pico_vec_free(&v);
+}
+
+UTEST(vector, sort_chars_handles_empty_and_single) {
+    char a = 'a';
+    struct PicoVec v;
+    pico_vec_init(&v, 1);
+
+    pico_vec_sort_chars(&v);
+    ASSERT_TRUE(v.size == 0);
+
+    pico_vec_push(&v, &a);
+    pico_vec_sort_chars(&v);
+    ASSERT_TRUE(v.size == 1);
+    ASSERT_TRUE(v.data[0] == &a);
 
     pico_vec_free(&v);
 }
