@@ -50,8 +50,7 @@ static inline size_t pico_hash_string(const char* key) {
 }
 
 static inline bool pico_hashmap_should_grow(struct PicoHashMap* map) {
-    return (map->size + 1) * PICO_HASHMAP_MAX_LOAD_DEN >
-           map->capacity * PICO_HASHMAP_MAX_LOAD_NUM;
+    return (map->size + 1) * PICO_HASHMAP_MAX_LOAD_DEN > map->capacity * PICO_HASHMAP_MAX_LOAD_NUM;
 }
 
 static inline struct PicoHashMap* pico_hashmap_init_with_capacity(size_t capacity) {
