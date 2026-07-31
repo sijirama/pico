@@ -1,0 +1,4 @@
+pico learns from tiny text
+pico learns token patterns
+tiny transformers predict next tokens
+bpe keeps useful chunks together

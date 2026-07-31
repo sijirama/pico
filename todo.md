@@ -24,10 +24,10 @@
 
 ## 2b. Causal language modeling path
 
-- [ ] Add a next-token prediction dataset.
+- [x] Add a next-token prediction dataset.
   - Turn token ids into shifted `x` / `y` windows for GPT-style training.
 
-- [ ] Add a subword tokenizer.
+- [x] Add a subword tokenizer.
   - Start with WordPiece or BPE, then plug it into the same dataset/dataloader path.
 
 ## 3. Saving and loading

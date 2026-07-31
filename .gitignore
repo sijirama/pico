@@ -27,3 +27,6 @@ gmon.out
 # OS generated
 .DS_Store
 Thumbs.db
+
+# Misc
+study_list.md
