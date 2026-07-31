@@ -49,6 +49,7 @@ we normally only need init, ingest, train, encode, and decode.
 #define MAX_BPE_VOCAB_CAPACITY 1280
 #define BPE_PAIR_SEPARATOR '\t'
 #define BPE_UNK_TOKEN_ID 1
+#define BPE_SPACE_TOKEN "<|space|>"
 
 struct BPEMergeRule {
     char* left;
@@ -86,37 +87,67 @@ static inline void convert_to_lowercase(char* str) {
     }
 }
 
-// INFO: this is the first rough pre-tokenizer
-// it turns raw text into word-like chunks before bpe starts splitting words into chars
-static inline void bpe_pretokenize(struct PicoVec* container, char* normalized_text) {
-    // Delimiters for tokenization: whitespace and punctuation
-    const char* delimiters = " \t\n\r.,;:!?()[]{}<>\"'`~@#$%^&*-+=|/";
+static inline bool bpe_is_atomic_token(const char* token) {
+    return token != NULL && strcmp(token, BPE_SPACE_TOKEN) == 0;
+}
 
-    char* text_copy = malloc(strlen(normalized_text) + 1);
-    if(text_copy == NULL) {
-        perror("malloc failed");
+static inline bool bpe_push_heap_token(struct PicoVec* container, const char* start, size_t len) {
+    if(container == NULL || start == NULL || len == 0) {
+        return true;
+    }
+
+    char* token = malloc(len + 1);
+    if(token == NULL) {
+        return false;
+    }
+
+    memcpy(token, start, len);
+    token[len] = '\0';
+    pico_vec_push(container, token);
+    return true;
+}
+
+// INFO: this is the first rough pre-tokenizer
+// it turns raw text into word-like chunks, but keeps normal spaces as <|space|>
+static inline void bpe_pretokenize(struct PicoVec* container, char* normalized_text) {
+    if(container == NULL || normalized_text == NULL) {
         return;
     }
-    strcpy(text_copy, normalized_text);
 
-    char* token = strtok(text_copy, delimiters);
-    while(token != NULL) {
-        // Allocate memory for the token string
-        char* token_copy = malloc(strlen(token) + 1);
-        if(token_copy == NULL) {
-            perror("malloc failed");
-            free(text_copy);
-            return;
+    // Delimiters for tokenization: punctuation and non-space whitespace
+    const char* delimiters = "\t\n\r.,;:!?()[]{}<>\"'`~@#$%^&*-+=|/";
+    const char* token_start = NULL;
+
+    for(char* current = normalized_text; true; current++) {
+        char c = *current;
+        bool at_end = c == '\0';
+        bool is_space = c == ' ';
+        bool is_delimiter = !at_end && strchr(delimiters, c) != NULL;
+
+        if(token_start != NULL && (at_end || is_space || is_delimiter)) {
+            if(!bpe_push_heap_token(container, token_start, (size_t)(current - token_start))) {
+                return;
+            }
+            token_start = NULL;
         }
-        strcpy(token_copy, token);
 
-        // Append the token to the container
-        pico_vec_push(container, token_copy);
+        if(at_end) {
+            break;
+        }
 
-        token = strtok(NULL, delimiters);
+        if(is_space) {
+            bpe_push_heap_token(container, BPE_SPACE_TOKEN, strlen(BPE_SPACE_TOKEN));
+            continue;
+        }
+
+        if(is_delimiter) {
+            continue;
+        }
+
+        if(token_start == NULL) {
+            token_start = current;
+        }
     }
-
-    free(text_copy);
 }
 
 // INFO: bpe split tokens are temporary training objects, so these helpers use heap strings
@@ -305,6 +336,14 @@ static inline struct PicoVec* bpe_create_word_split(const char* word) {
     size_t word_len = strlen(word);
     pico_vec_init(split, word_len > 0 ? word_len : 1);
 
+    if(bpe_is_atomic_token(word)) {
+        char* token = bpe_heap_strdup(word);
+        if(token != NULL) {
+            pico_vec_push(split, token);
+        }
+        return split;
+    }
+
     for(size_t i = 0; i < word_len; i++) {
         char* token = bpe_heap_char_token(word[i]);
         if(token != NULL) {
@@ -436,6 +475,10 @@ static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
             continue;
         }
 
+        if(bpe_is_atomic_token(entry.key)) {
+            continue;
+        }
+
         p = entry.key;
 
         while(*p != '\0') {
@@ -454,12 +497,13 @@ static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
     pico_vec_sort_chars(&alphabet);  // sort that alphavet vector pls
 
     struct PicoVec special_tokens;
-    pico_vec_init(&special_tokens, 5);
+    pico_vec_init(&special_tokens, 6);
     pico_vec_push(&special_tokens, "<|endoftext|>");
     pico_vec_push(&special_tokens, "<|unk|>");
     pico_vec_push(&special_tokens, "<|pad|>");
     pico_vec_push(&special_tokens, "<|bos|>");
     pico_vec_push(&special_tokens, "<|eos|>");
+    pico_vec_push(&special_tokens, BPE_SPACE_TOKEN);
 
     struct PicoVec* next_vocab = pico_vec_append(&special_tokens, &alphabet);
     if(next_vocab != NULL) {
@@ -726,6 +770,9 @@ static inline void* pico_bpe_tk_decode(const struct Tokenizer* self, const size_
     for(size_t i = 0; ids[i] != (size_t)-1; i++) {
         size_t id = ids[i];
         const char* token = id < data->vocab->size ? (const char*)data->vocab->data[id] : "<|unk|>";
+        if(strcmp(token, BPE_SPACE_TOKEN) == 0) {
+            token = " ";
+        }
         size_t token_len = strlen(token);
 
         if(out_len + token_len + 1 > buffer_cap) {

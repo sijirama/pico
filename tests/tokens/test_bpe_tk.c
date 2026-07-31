@@ -76,10 +76,12 @@ UTEST(bpe_tk, ingest_lowercases_and_splits_words) {
 
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     ASSERT_TRUE(pico_hashmap_contains(data->corpus, "pico"));
+    ASSERT_TRUE(pico_hashmap_contains(data->corpus, BPE_SPACE_TOKEN));
     ASSERT_TRUE(pico_hashmap_contains(data->corpus, "learns"));
     ASSERT_TRUE(pico_hashmap_contains(data->corpus, "fast"));
     ASSERT_FALSE(pico_hashmap_contains(data->corpus, "Pico"));
-    ASSERT_EQ(data->corpus->size, (size_t)3);
+    ASSERT_EQ(data->corpus->size, (size_t)4);
+    ASSERT_EQ(bpe_freq(tokenizer, BPE_SPACE_TOKEN), (size_t)2);
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
@@ -124,15 +126,16 @@ UTEST(bpe_tk, train_builds_special_tokens_and_sorted_alphabet) {
     bpe_train_vocab(tokenizer);
 
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
-    ASSERT_EQ(data->vocab->size, (size_t)8);
+    ASSERT_EQ(data->vocab->size, (size_t)9);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[0], "<|endoftext|>") == 0);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[1], "<|unk|>") == 0);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[2], "<|pad|>") == 0);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[3], "<|bos|>") == 0);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[4], "<|eos|>") == 0);
-    ASSERT_TRUE(*(char*)data->vocab->data[5] == 'a');
-    ASSERT_TRUE(*(char*)data->vocab->data[6] == 'b');
-    ASSERT_TRUE(*(char*)data->vocab->data[7] == 'c');
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[5], BPE_SPACE_TOKEN) == 0);
+    ASSERT_TRUE(*(char*)data->vocab->data[6] == 'a');
+    ASSERT_TRUE(*(char*)data->vocab->data[7] == 'b');
+    ASSERT_TRUE(*(char*)data->vocab->data[8] == 'c');
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
@@ -145,9 +148,10 @@ UTEST(bpe_tk, train_empty_corpus_keeps_only_special_tokens) {
     bpe_train_vocab(tokenizer);
 
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
-    ASSERT_EQ(data->vocab->size, (size_t)5);
+    ASSERT_EQ(data->vocab->size, (size_t)6);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[0], "<|endoftext|>") == 0);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[4], "<|eos|>") == 0);
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[5], BPE_SPACE_TOKEN) == 0);
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
@@ -159,13 +163,13 @@ UTEST(bpe_tk, train_learns_most_frequent_merges_until_capacity) {
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char text[] = "hug hug bug";
 
-    data->max_vocab_capacity = 11;
+    data->max_vocab_capacity = 12;
     bpe_ingest_text(tokenizer, text);
     bpe_train(tokenizer);
 
-    ASSERT_EQ(data->vocab->size, (size_t)11);
-    ASSERT_TRUE(strcmp((char*)data->vocab->data[9], "ug") == 0);
-    ASSERT_TRUE(strcmp((char*)data->vocab->data[10], "hug") == 0);
+    ASSERT_EQ(data->vocab->size, (size_t)12);
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[10], "ug") == 0);
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[11], "hug") == 0);
     ASSERT_EQ(data->merges->size, (size_t)2);
 
     struct BPEMergeRule* first_merge = (struct BPEMergeRule*)data->merges->data[0];
@@ -191,9 +195,10 @@ UTEST(bpe_tk, train_stops_when_no_pairs_are_left) {
     bpe_ingest_text(tokenizer, text);
     bpe_train(tokenizer);
 
-    ASSERT_EQ(data->vocab->size, (size_t)6);
+    ASSERT_EQ(data->vocab->size, (size_t)7);
     ASSERT_TRUE(strcmp((char*)data->vocab->data[0], "<|endoftext|>") == 0);
-    ASSERT_TRUE(strcmp((char*)data->vocab->data[5], "a") == 0);
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[5], BPE_SPACE_TOKEN) == 0);
+    ASSERT_TRUE(strcmp((char*)data->vocab->data[6], "a") == 0);
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
@@ -205,7 +210,7 @@ UTEST(bpe_tk, encode_replays_learned_merges_in_order) {
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char train_text[] = "hug hug bug";
 
-    data->max_vocab_capacity = 11;
+    data->max_vocab_capacity = 12;
     bpe_ingest_text(tokenizer, train_text);
     bpe_train(tokenizer);
 
@@ -213,10 +218,11 @@ UTEST(bpe_tk, encode_replays_learned_merges_in_order) {
 
     ASSERT_TRUE(ids != NULL);
     ASSERT_EQ(ids[0], (size_t)BPE_UNK_TOKEN_ID);
-    ASSERT_EQ(ids[1], (size_t)10);
+    ASSERT_EQ(ids[1], (size_t)11);
     ASSERT_EQ(ids[2], (size_t)5);
-    ASSERT_EQ(ids[3], (size_t)9);
-    ASSERT_EQ(ids[4], (size_t)-1);
+    ASSERT_EQ(ids[3], (size_t)6);
+    ASSERT_EQ(ids[4], (size_t)10);
+    ASSERT_EQ(ids[5], (size_t)-1);
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
@@ -228,15 +234,15 @@ UTEST(bpe_tk, decode_maps_ids_back_to_tokens) {
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char train_text[] = "hug hug bug";
 
-    data->max_vocab_capacity = 11;
+    data->max_vocab_capacity = 12;
     bpe_ingest_text(tokenizer, train_text);
     bpe_train(tokenizer);
 
-    size_t ids[] = {10, 5, 9, (size_t)-1};
+    size_t ids[] = {11, 5, 6, 10, (size_t)-1};
     char* decoded = (char*)tokenizer->methods->decode(tokenizer, ids);
 
     ASSERT_TRUE(decoded != NULL);
-    ASSERT_TRUE(strcmp(decoded, "hugbug") == 0);
+    ASSERT_TRUE(strcmp(decoded, "hug bug") == 0);
 
     free_bpe_map(tokenizer);
     pico_context_destroy(&ctx);
