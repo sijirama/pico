@@ -1,7 +1,8 @@
 #pragma once
 
-#include <stdbool.h>
 #include <ctype.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -26,10 +27,11 @@ static inline size_t pico_bpe_tk_len(const struct Tokenizer* self) {
     const struct BPEPicoTKData* data = (const struct BPEPicoTKData*)self->data;
     return data->corpus->size;
 }
+static inline void* pico_bpe_tk_encode(const struct Tokenizer* self, const char* text) {}
+static inline void* pico_bpe_tk_decode(const struct Tokenizer* self, const size_t* ids) {}
 
 static const struct TokenizerVTable BPE_TK_METHODS = {
-    .len = pico_bpe_tk_len,
-};
+    .len = pico_bpe_tk_len, .encode = pico_bpe_tk_encode, .decode = pico_bpe_tk_decode};
 
 // ===================== these are util functions for the bpe to operate
 
@@ -113,7 +115,7 @@ static inline void bpe_ingest_text(struct Tokenizer* tokenizer, char* text_input
     pico_vec_free(&temp_container);
 }
 
-// train the vocab and add special tokens too
+// train the initial vocab and add special tokens too
 static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
     if(tokenizer == NULL || tokenizer->data == NULL) {
         return;
@@ -142,7 +144,7 @@ static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
 
         while(*p != '\0') {
             unsigned char current = (unsigned char)*p;
-            if(!seen_chars[current]) {          // if we didn't find the character
+            if(!seen_chars[current]) {  // if we didn't find the character
                 seen_chars[current] = true;
                 pico_vec_push(&alphabet, (void*)p);  // push to the alphabet vector
             }
@@ -171,9 +173,35 @@ static inline void bpe_train_vocab(struct Tokenizer* tokenizer) {
     pico_vec_free(&alphabet);
 }
 
+static inline void bpe_create_splits(struct PicoHashMap* splits) {}
+static inline void bpe_merge_pair(struct PicoHashMap* splits, const char* pair) {}
+static inline void bpe_compute_pair_freqs(struct PicoHashMap* pair_freqs, struct PicoHashMap* splits) {}
 
 static inline void bpe_train(struct Tokenizer* tokenizer) {
-    bpe_train_vocab(tokenizer); // train the vocab
+    bpe_train_vocab(tokenizer);  // train the initial vocab
+    struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
+
+    struct PicoHashMap* splits = pico_hashmap_init();  // word: ["w","o","r","d"]
+    bpe_create_splits(splits);
+
+    struct PicoHashMap* pair_freqs = pico_hashmap_init();  // "ab" : 2 note: key is only 2 characters here
+
+    struct PicoHashEntry pair_entry;
+
+    while(data->vocab->size < data->max_vocab_capacity) {
+        bpe_compute_pair_freqs(pair_freqs, splits);
+        char best_pair[3] = "";
+        int max_freq = -1;
+        for(size_t i = 0; i < pair_freqs->size; i++) {
+            pair_entry = pair_freqs->entries[i];
+            if(max_freq == -1 || max_freq < (size_t)pair_entry.key) {
+                strcpy(best_pair, pair_entry.key);
+                max_freq = (size_t)pair_entry.value;
+            }
+        }
+        bpe_merge_pair(splits, best_pair);
+        pico_vec_push(data->vocab, best_pair);
+    }
 }
 
 // INFO: unlike the wordbased tokenizer, this tk is gonna initiate a tokenizer then have another function to fill in the
