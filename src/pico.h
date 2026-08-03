@@ -11,6 +11,7 @@
 #include "lib/pico_vector.h"
 #include "act/activations.h"
 #include "loss/loss.h"
+#include "nn/embedding.h"
 #include "nn/linear.h"
 #include "optim/optim.h"
 #include "data/data.h"
