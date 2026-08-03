@@ -26,6 +26,9 @@ example:
 this follows the simple hugging face bpe walkthrough:
 https://huggingface.co/learn/llm-course/en/chapter6/5
 
+another really cool paper (probably even better):
+https://sebastianraschka.com/blog/2025/bpe-from-scratch.html
+
 the small bpe_* helpers below exist so the training loop is easier to read.
 we normally only need init, ingest, train, encode, and decode.
 
