@@ -169,28 +169,25 @@ static struct Dataset text_dataset_from_file(struct PicoContext* ctx, struct Tok
 }
 
 int main(void) {
-    pico_init();
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init();
 
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
     if(tokenizer == NULL) {
         fprintf(stderr, "failed to create tokenizer\n");
-        pico_context_destroy(&ctx);
-        pico_shutdown();
+        pico_shutdown(ctx);
         return 1;
     }
 
     struct Dataset dataset =
-        text_dataset_from_file(&ctx, tokenizer, "examples/03_tokenizer_dataloader/data.txt");
+        text_dataset_from_file(ctx, tokenizer, "examples/03_tokenizer_dataloader/data.txt");
     if(dataset.funcs == NULL) {
         fprintf(stderr, "failed to load text dataset\n");
         free_wordbased_map(tokenizer);
-        pico_context_destroy(&ctx);
-        pico_shutdown();
+        pico_shutdown(ctx);
         return 1;
     }
 
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
 
     printf("vocab size: %zu\n", tokenizer->methods->len(tokenizer));
 
@@ -205,7 +202,6 @@ int main(void) {
 
     dataset.funcs->free(&dataset);
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
-    pico_shutdown();
+    pico_shutdown(ctx);
     return 0;
 }

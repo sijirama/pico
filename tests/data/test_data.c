@@ -126,29 +126,29 @@ static struct Dataset make_tokenized_text_dataset(struct TokenizedTextDatasetDat
 }
 
 UTEST(dataloader, init_rejects_invalid_inputs) {
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
 
     struct TestDatasetData data = {.xs = NULL, .ys = NULL, .len = 0};
     struct Dataset dataset = make_test_dataset(&data);
 
     ASSERT_TRUE(pico_dataloader_init(NULL, &dataset, 2, false) == NULL);
-    ASSERT_TRUE(pico_dataloader_init(&ctx, NULL, 2, false) == NULL);
-    ASSERT_TRUE(pico_dataloader_init(&ctx, &dataset, 0, false) == NULL);
+    ASSERT_TRUE(pico_dataloader_init(ctx, NULL, 2, false) == NULL);
+    ASSERT_TRUE(pico_dataloader_init(ctx, &dataset, 0, false) == NULL);
 
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(dataloader, init_builds_sequential_indices) {
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoTensor* xs[4];
     struct PicoTensor* ys[4];
-    fill_test_tensors(&ctx, xs, ys, 4);
+    fill_test_tensors(ctx, xs, ys, 4);
 
     struct TestDatasetData data = {.xs = xs, .ys = ys, .len = 4};
     struct Dataset dataset = make_test_dataset(&data);
 
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
     ASSERT_TRUE(loader != NULL);
     ASSERT_TRUE(loader->dataset == &dataset);
     ASSERT_EQ(loader->batch_size, (size_t)2);
@@ -158,19 +158,19 @@ UTEST(dataloader, init_builds_sequential_indices) {
         ASSERT_EQ(loader->indices[i], i);
     }
 
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(dataloader, next_returns_full_batches_and_tail) {
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoTensor* xs[5];
     struct PicoTensor* ys[5];
-    fill_test_tensors(&ctx, xs, ys, 5);
+    fill_test_tensors(ctx, xs, ys, 5);
 
     struct TestDatasetData data = {.xs = xs, .ys = ys, .len = 5};
     struct Dataset dataset = make_test_dataset(&data);
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
 
     struct DataBatch* b1 = pico_dataloader_next(loader);
     ASSERT_TRUE(b1 != NULL);
@@ -192,19 +192,19 @@ UTEST(dataloader, next_returns_full_batches_and_tail) {
 
     ASSERT_TRUE(pico_dataloader_next(loader) == NULL);
 
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(dataloader, reset_rewinds_iteration) {
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoTensor* xs[3];
     struct PicoTensor* ys[3];
-    fill_test_tensors(&ctx, xs, ys, 3);
+    fill_test_tensors(ctx, xs, ys, 3);
 
     struct TestDatasetData data = {.xs = xs, .ys = ys, .len = 3};
     struct Dataset dataset = make_test_dataset(&data);
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
 
     ASSERT_TRUE(pico_dataloader_next(loader) != NULL);
     ASSERT_TRUE(pico_dataloader_next(loader) != NULL);
@@ -217,19 +217,19 @@ UTEST(dataloader, reset_rewinds_iteration) {
     ASSERT_EQ(batch->size, (size_t)2);
     ASSERT_TRUE(batch->items[0].x->data[0] == 0.0f);
 
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(dataloader, shuffle_keeps_index_permutation) {
-    struct PicoContext ctx = pico_context_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoTensor* xs[6];
     struct PicoTensor* ys[6];
-    fill_test_tensors(&ctx, xs, ys, 6);
+    fill_test_tensors(ctx, xs, ys, 6);
 
     struct TestDatasetData data = {.xs = xs, .ys = ys, .len = 6};
     struct Dataset dataset = make_test_dataset(&data);
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 3, true);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 3, true);
 
     int seen[6] = {0};
     for(size_t i = 0; i < 6; i++) {
@@ -241,7 +241,7 @@ UTEST(dataloader, shuffle_keeps_index_permutation) {
         ASSERT_EQ(seen[i], 1);
     }
 
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(dataloader, reset_null_guard_returns) {
@@ -249,8 +249,8 @@ UTEST(dataloader, reset_null_guard_returns) {
 }
 
 UTEST(dataloader, tokenized_text_dataset_batches_encoded_tensors) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     ASSERT_TRUE(tokenizer != NULL);
     ASSERT_TRUE(pico_wordbased_add_word(tokenizer, "hello"));
@@ -264,14 +264,14 @@ UTEST(dataloader, tokenized_text_dataset_batches_encoded_tensors) {
     const float labels[] = {1.0f, 0.0f, 1.0f};
 
     struct TokenizedTextDatasetData data = {
-        .ctx = &ctx,
+        .ctx = ctx,
         .tokenizer = tokenizer,
         .texts = texts,
         .labels = labels,
         .len = 3,
     };
     struct Dataset dataset = make_tokenized_text_dataset(&data);
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
 
     struct DataBatch* first = pico_dataloader_next(loader);
     ASSERT_TRUE(first != NULL);
@@ -297,5 +297,5 @@ UTEST(dataloader, tokenized_text_dataset_batches_encoded_tensors) {
     ASSERT_TRUE(pico_dataloader_next(loader) == NULL);
 
     free_wordbased_map_for_data_test(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }

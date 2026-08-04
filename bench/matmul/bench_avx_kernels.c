@@ -14,6 +14,7 @@
 
 #include "bench_common.h"
 #include "ctx.h"
+#include "global.h"
 
 #define WARMUP 3
 #define ITERS 10
@@ -30,7 +31,6 @@ struct shape {
 };
 
 int main(void) {
-    pico_init();
 
     struct strat strats[] = {
         {"scalar", pico_matmul_cpu_scalar},       {"1x8", bench_matmul_roll1},
@@ -59,11 +59,11 @@ int main(void) {
         int64_t sa[] = {M, K};
         int64_t sb[] = {K, N};
         int64_t so[] = {M, N};
-        struct PicoContext ctx = pico_context_init();
-        struct PicoTensor* a = pico_param(&ctx, sa, 2);
-        struct PicoTensor* b = pico_param(&ctx, sb, 2);
-        struct PicoTensor* out = pico_param(&ctx, so, 2);
-        struct PicoTensor* ref = pico_param(&ctx, so, 2);
+        struct PicoContext* ctx = pico_init_verbose(false);
+        struct PicoTensor* a = pico_param(ctx, sa, 2);
+        struct PicoTensor* b = pico_param(ctx, sb, 2);
+        struct PicoTensor* out = pico_param(ctx, so, 2);
+        struct PicoTensor* ref = pico_param(ctx, so, 2);
 
         for(int64_t i = 0; i < a->numel; i++) a->data[i] = (float)((i % 13) - 6) * 0.25f;
         for(int64_t i = 0; i < b->numel; i++) b->data[i] = (float)((i % 7) - 3) * 0.5f;
@@ -99,7 +99,7 @@ int main(void) {
         printf("  ------------------------------------------------------\n");
         printf("  winner: %s (%.2f GFLOP/s)\n", best, best_g);
 
-        pico_context_destroy(&ctx);
+        pico_shutdown(ctx);
     }
     printf("\n");
     return 0;

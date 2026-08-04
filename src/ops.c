@@ -28,8 +28,8 @@ struct PicoTensor* pico_add(struct PicoContext* ctx, struct PicoTensor* a, struc
     }
 
     int ndim = MAX(a->ndim, b->ndim);
-    int64_t* a_padded_shape = pad_shape(arena, a, ndim);
-    int64_t* b_padded_shape = pad_shape(arena, b, ndim);
+    int64_t* a_padded_shape = pad_shape(ctx, a, ndim);
+    int64_t* b_padded_shape = pad_shape(ctx, b, ndim);
 
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     for(int i = 0; i < ndim; i++)
@@ -72,8 +72,8 @@ struct PicoTensor* pico_sub(struct PicoContext* ctx, struct PicoTensor* a, struc
     }
 
     int ndim = MAX(a->ndim, b->ndim);
-    int64_t* a_padded_shape = pad_shape(arena, a, ndim);
-    int64_t* b_padded_shape = pad_shape(arena, b, ndim);
+    int64_t* a_padded_shape = pad_shape(ctx, a, ndim);
+    int64_t* b_padded_shape = pad_shape(ctx, b, ndim);
 
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     for(int i = 0; i < ndim; i++)
@@ -116,8 +116,8 @@ struct PicoTensor* pico_mul(struct PicoContext* ctx, struct PicoTensor* a, struc
     }
 
     int ndim = MAX(a->ndim, b->ndim);
-    int64_t* a_padded_shape = pad_shape(arena, a, ndim);
-    int64_t* b_padded_shape = pad_shape(arena, b, ndim);
+    int64_t* a_padded_shape = pad_shape(ctx, a, ndim);
+    int64_t* b_padded_shape = pad_shape(ctx, b, ndim);
 
     int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     for(int i = 0; i < ndim; i++)

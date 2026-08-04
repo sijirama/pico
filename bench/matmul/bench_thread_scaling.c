@@ -11,6 +11,7 @@
 
 #include "global.h"
 #include "ctx.h"
+#include "global.h"
 #include "kernels/cpu_kernels.h"
 #include "tensor.h"
 
@@ -63,7 +64,6 @@ static float max_abs_diff(struct PicoTensor* x, struct PicoTensor* y) {
 }
 
 int main(void) {
-    pico_init();
 
     int sizes[] = {128, 256, 512, 1024};
     int n_sizes = (int)(sizeof(sizes) / sizeof(sizes[0]));
@@ -77,11 +77,11 @@ int main(void) {
     for(int s = 0; s < n_sizes; s++) {
         int n = sizes[s];
         int64_t shape[] = {n, n};
-        struct PicoContext ctx = pico_context_init();
-        struct PicoTensor* a = pico_param(&ctx, shape, 2);
-        struct PicoTensor* b = pico_param(&ctx, shape, 2);
-        struct PicoTensor* out = pico_param(&ctx, shape, 2);
-        struct PicoTensor* ref = pico_param(&ctx, shape, 2);
+        struct PicoContext* ctx = pico_init_verbose(false);
+        struct PicoTensor* a = pico_param(ctx, shape, 2);
+        struct PicoTensor* b = pico_param(ctx, shape, 2);
+        struct PicoTensor* out = pico_param(ctx, shape, 2);
+        struct PicoTensor* ref = pico_param(ctx, shape, 2);
 
         for(int64_t i = 0; i < a->numel; i++) {
             a->data[i] = (float)((i % 13) - 6) * 0.25f;
@@ -103,7 +103,7 @@ int main(void) {
         printf("  %-8d %12.3f %12.3f %11.2fx %10.2f %10.3e%s\n", n, scalar_t * 1e3,
                avx_t * 1e3, scalar_t / avx_t, avx_g, diff, diff <= TOL ? "" : " MISMATCH");
 
-        pico_context_destroy(&ctx);
+        pico_shutdown(ctx);
     }
 
     printf("\n");
