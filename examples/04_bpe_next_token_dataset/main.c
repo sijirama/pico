@@ -161,39 +161,55 @@ static struct Dataset next_token_dataset_from_file(struct PicoContext* ctx, stru
     return dataset;
 }
 
-int main(void) {
-    pico_init();
-    struct PicoContext ctx = pico_context_init();
+static struct PicoTensor* make_next_token_embedding_targets(struct PicoContext* ctx, struct PicoTensor* y_ids,
+                                                           int embedding_dim, size_t vocab_size) {
+    int64_t seq_len = y_ids->shape[0];
+    int64_t target_shape[] = {seq_len, embedding_dim};
+    float* values = arena_alloc(ctx->arena, sizeof(float) * seq_len * embedding_dim);
+    if(values == NULL) {
+        return NULL;
+    }
 
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    for(int64_t i = 0; i < seq_len; i++) {
+        float token_scale = y_ids->data[i] / (float)vocab_size;
+        for(int j = 0; j < embedding_dim; j++) {
+            values[i * embedding_dim + j] = token_scale;
+        }
+    }
+
+    return pico_tensor_from_data(ctx, target_shape, 2, values);
+}
+
+int main(void) {
+    struct PicoContext* ctx = pico_init();
+
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     if(tokenizer == NULL) {
         fprintf(stderr, "failed to create bpe tokenizer\n");
-        pico_context_destroy(&ctx);
-        pico_shutdown();
+        pico_shutdown(ctx);
         return 1;
     }
 
     struct BPEPicoTKData* bpe_data = (struct BPEPicoTKData*)tokenizer->data;
     bpe_data->max_vocab_capacity = 64;
 
-    struct Dataset dataset = next_token_dataset_from_file(&ctx, tokenizer, "data.txt");
+    struct Dataset dataset =
+        next_token_dataset_from_file(ctx, tokenizer, "examples/04_bpe_next_token_dataset/data.txt");
     if(dataset.funcs == NULL) {
         fprintf(stderr, "failed to load next-token dataset\n");
         free_bpe_example_maps(tokenizer);
-        pico_context_destroy(&ctx);
-        pico_shutdown();
+        pico_shutdown(ctx);
         return 1;
     }
 
     bpe_train(tokenizer);
 
-    struct DataLoader* loader = pico_dataloader_init(&ctx, &dataset, 2, false);
+    struct DataLoader* loader = pico_dataloader_init(ctx, &dataset, 2, false);
     if(loader == NULL) {
         fprintf(stderr, "failed to create dataloader\n");
         dataset.funcs->free(&dataset);
         free_bpe_example_maps(tokenizer);
-        pico_context_destroy(&ctx);
-        pico_shutdown();
+        pico_shutdown(ctx);
         return 1;
     }
 
@@ -201,19 +217,46 @@ int main(void) {
     printf("dataset item shape: x = tokens[:-1], y = tokens[1:]\n\n");
 
     struct DataBatch* batch = NULL;
-    while((batch = pico_dataloader_next(loader)) != NULL) {
-        printf("batch size: %zu\n", batch->size);
-        for(size_t i = 0; i < batch->size; i++) {
-            printf("x token ids:\n");
-            pico_tensor_print(batch->items[i].x);
-            printf("y shifted token ids:\n");
-            pico_tensor_print(batch->items[i].y);
-        }
+    batch = pico_dataloader_next(loader);
+    if(batch == NULL || batch->size == 0) {
+        fprintf(stderr, "empty dataloader\n");
+        dataset.funcs->free(&dataset);
+        free_bpe_example_maps(tokenizer);
+        pico_shutdown(ctx);
+        return 1;
     }
 
+    struct DatasetItem sample = batch->items[0];
+    printf("x token ids:\n");
+    pico_tensor_print(sample.x);
+    printf("y shifted token ids:\n");
+    pico_tensor_print(sample.y);
+
+    int embedding_dim = 4;
+    struct PicoEmbedding* embedding = pico_embedding_init(ctx, (int)tokenizer->methods->len(tokenizer), embedding_dim);
+    struct PicoOptimSGD* optim = pico_optim_sgd_init(0.5f);
+    struct PicoMSELoss mse = {.reduction = MEAN};
+
+    struct PicoTensor* target =
+        make_next_token_embedding_targets(ctx, sample.y, embedding_dim, tokenizer->methods->len(tokenizer));
+    struct PicoTensor* pred_before = pico_embedding_apply(ctx, embedding, sample.x);
+    struct PicoTensor* loss_before = pico_mse_loss(ctx, &mse, pred_before, target);
+
+    pico_optim_sgd_zero_grad(ctx, optim);
+    pico_backward(ctx, loss_before);
+    pico_optim_sgd_step(ctx, optim);
+
+    struct PicoTensor* pred_after = pico_embedding_apply(ctx, embedding, sample.x);
+    struct PicoTensor* loss_after = pico_mse_loss(ctx, &mse, pred_after, target);
+
+    printf("\ntrainable embedding demo\n");
+    printf("loss before one sgd step: %.6f\n", loss_before->data[0]);
+    printf("loss after one sgd step:  %.6f\n", loss_after->data[0]);
+    printf("\nthis is not full transformer training yet, it just proves the embedding table is a trainable param.\n");
+
+    pico_optim_sgd_free(optim);
     dataset.funcs->free(&dataset);
     free_bpe_example_maps(tokenizer);
-    pico_context_destroy(&ctx);
-    pico_shutdown();
+    pico_shutdown(ctx);
     return 0;
 }

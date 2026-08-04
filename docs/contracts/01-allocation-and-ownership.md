@@ -35,7 +35,7 @@ Two lifetimes ⇒ **two memory regions.**
      grads). Wiped once per step.
 
 3. **Where a new tensor is born is decided by *which function creates it*:**
-   - `pico_param(&ctx, ...)` → **persistent** region. Created **once**, before the loop.
+   - `pico_param(ctx, ...)` → **persistent** region. Created **once**, before the loop.
    - any op (`matmul`, `add`, `relu`, …) → the **current temp arena**.
    - A tensor's region is **implicit in where its bytes live** — not a property it
      reasons about.
@@ -52,8 +52,8 @@ Two lifetimes ⇒ **two memory regions.**
    - **Transient:** `arena_reset(arena)` once per step. It reclaims the whole block
      by moving the arena's offset back to 0 — it **never inspects individual
      tensors**. All intermediates vanish at once.
-   - **Persistent:** ctx owns tensors created with `pico_param(&ctx, ...)`.
-     `pico_context_destroy(&ctx)` frees any registered params still alive.
+   - **Persistent:** ctx owns tensors created with `pico_param(ctx, ...)`.
+     `pico_shutdown(ctx)` frees any registered params still alive.
      Normal user code should not free params one by one.
 
 6. **The optimizer mutates weights in place.** `w.data -= lr * w.grad` — no new
@@ -71,25 +71,25 @@ Two lifetimes ⇒ **two memory regions.**
 
 ## What the user writes (the contract in practice)
 ```text
-ctx = pico_context_init()
+ctx = pico_init()
 
-w = pico_param(&ctx, shape)    // persistent, made ONCE
-b = pico_param(&ctx, shape)
+w = pico_param(ctx, shape)     // persistent, made ONCE
+b = pico_param(ctx, shape)
 
 for step in 1..N:
-    h    = matmul(&ctx, x, w)  //  -> ctx arena
-    h    = add(&ctx, h, b)     //  -> ctx arena
-    pred = relu(&ctx, h)       //  -> ctx arena
-    loss = mse(&ctx, pred, y)  //  -> ctx arena
+    h    = matmul(ctx, x, w)   //  -> ctx arena
+    h    = add(ctx, h, b)      //  -> ctx arena
+    pred = relu(ctx, h)        //  -> ctx arena
+    loss = mse(ctx, pred, y)   //  -> ctx arena
 
-    backward(&ctx, loss)       // intermediate grads -> arena; w/b grads -> persistent
+    backward(ctx, loss)        // intermediate grads -> arena; w/b grads -> persistent
 
-    sgd_step(w, lr)            // in-place on persistent
-    sgd_step(b, lr)
+    pico_optim_sgd_step(ctx, opt)       // in-place on registered params
+    pico_optim_sgd_zero_grad(ctx, opt)
 
-    arena_reset(ctx.arena)     // wipes ALL intermediates; w, b untouched
+    arena_reset(ctx->arena)    // wipes ALL intermediates; w, b untouched
 
-pico_context_destroy(&ctx)     // frees remaining params and the arena
+pico_shutdown(ctx)             // frees remaining params, arena, and runtime pieces
 ```
 
 ## Consequences / rules of thumb
@@ -98,7 +98,7 @@ pico_context_destroy(&ctx)     // frees remaining params and the arena
 - Don't hold a pointer to an intermediate across an `arena_reset()` — it's freed.
 - Modules do not own params. `linear_free()` frees the layer shell only; ctx owns
   the weights and bias.
-- Op signatures take ctx plus real inputs (`add(&ctx, a, b)`), never a raw arena
+- Op signatures take ctx plus real inputs (`add(ctx, a, b)`), never a raw arena
   or an `out`.
 
 ## Open / deferred

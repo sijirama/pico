@@ -4,8 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "arena.h"
-
-struct PicoContext;
+#include "ctx.h"
 
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
 typedef enum { CPU, GPU } PicoBackend;
@@ -113,7 +112,12 @@ uint8_t pico_check_broadcast_compatibility(struct PicoTensor* a, struct PicoTens
 
 // pad a tensor's shape up to `ndim` by prepending 1s on the left (right-align).
 // only used in ops to compute the output shape (out_dim = max of padded shapes).
-static inline int64_t* pad_shape(struct Arena* arena, struct PicoTensor* smaller, int ndim) {
+static inline int64_t* pad_shape(struct PicoContext* ctx, struct PicoTensor* smaller, int ndim) {
+    struct Arena* arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        return NULL;
+    }
+
     int64_t* padded = arena_alloc(arena, sizeof(int64_t) * ndim);
     int diff = ndim - smaller->ndim;
     for(int i = 0; i < ndim; i++) {

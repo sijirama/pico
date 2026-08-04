@@ -71,15 +71,16 @@ UTEST(tpool, rejects_null_work_function) {
 }
 
 UTEST(tpool, global_init_shutdown_lifecycle) {
-    pico_shutdown();
+    pico_shutdown(NULL);
     ASSERT_TRUE(global_tp == NULL);
     ASSERT_EQ(g_pico_initialized, 0);
 
-    pico_init();
+    struct PicoContext* ctx = pico_init_verbose(false);
+    ASSERT_TRUE(ctx != NULL);
     ASSERT_TRUE(global_tp != NULL);
     ASSERT_EQ(g_pico_initialized, 1);
 
-    pico_shutdown();
+    pico_shutdown(ctx);
     ASSERT_TRUE(global_tp == NULL);
     ASSERT_EQ(g_pico_initialized, 0);
 }

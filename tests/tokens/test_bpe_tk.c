@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 
+#include "global.h"
 #include "tokens/bpe-tk.h"
 #include "utest.h"
 
@@ -36,11 +37,11 @@ static size_t bpe_freq(struct Tokenizer* tokenizer, const char* token) {
 }
 
 UTEST(bpe_tk, init_sets_context_methods_and_vocab) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
 
     ASSERT_TRUE(tokenizer != NULL);
-    ASSERT_TRUE(tokenizer->ctx == &ctx);
+    ASSERT_TRUE(tokenizer->ctx == ctx);
     ASSERT_TRUE(tokenizer->methods == &BPE_TK_METHODS);
     ASSERT_TRUE(tokenizer->data != NULL);
 
@@ -60,7 +61,7 @@ UTEST(bpe_tk, init_sets_context_methods_and_vocab) {
     ASSERT_EQ(data->max_vocab_capacity, MAX_BPE_VOCAB_CAPACITY);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, init_rejects_null_context) {
@@ -68,8 +69,8 @@ UTEST(bpe_tk, init_rejects_null_context) {
 }
 
 UTEST(bpe_tk, ingest_lowercases_and_splits_words) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     char text[] = "Pico, learns! FAST.";
 
     bpe_ingest_text(tokenizer, text);
@@ -84,12 +85,12 @@ UTEST(bpe_tk, ingest_lowercases_and_splits_words) {
     ASSERT_EQ(bpe_freq(tokenizer, BPE_SPACE_TOKEN), (size_t)2);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, ingest_tracks_token_frequency) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     char first[] = "pico pico tensor";
     char second[] = "tensor pico";
 
@@ -100,12 +101,12 @@ UTEST(bpe_tk, ingest_tracks_token_frequency) {
     ASSERT_EQ(bpe_freq(tokenizer, "tensor"), (size_t)2);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, ingest_rejects_invalid_inputs) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
 
     bpe_ingest_text(NULL, NULL);
     bpe_ingest_text(tokenizer, NULL);
@@ -114,12 +115,12 @@ UTEST(bpe_tk, ingest_rejects_invalid_inputs) {
     ASSERT_EQ(data->corpus->size, (size_t)0);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, train_builds_special_tokens_and_sorted_alphabet) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     char text[] = "cab ba";
 
     bpe_ingest_text(tokenizer, text);
@@ -138,12 +139,12 @@ UTEST(bpe_tk, train_builds_special_tokens_and_sorted_alphabet) {
     ASSERT_TRUE(*(char*)data->vocab->data[8] == 'c');
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, train_empty_corpus_keeps_only_special_tokens) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
 
     bpe_train_vocab(tokenizer);
 
@@ -154,12 +155,12 @@ UTEST(bpe_tk, train_empty_corpus_keeps_only_special_tokens) {
     ASSERT_TRUE(strcmp((char*)data->vocab->data[5], BPE_SPACE_TOKEN) == 0);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, train_learns_most_frequent_merges_until_capacity) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char text[] = "hug hug bug";
 
@@ -182,12 +183,12 @@ UTEST(bpe_tk, train_learns_most_frequent_merges_until_capacity) {
     ASSERT_TRUE(strcmp(second_merge->merged, "hug") == 0);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, train_stops_when_no_pairs_are_left) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char text[] = "a";
 
@@ -201,12 +202,12 @@ UTEST(bpe_tk, train_stops_when_no_pairs_are_left) {
     ASSERT_TRUE(strcmp((char*)data->vocab->data[6], "a") == 0);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, encode_replays_learned_merges_in_order) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char train_text[] = "hug hug bug";
 
@@ -225,12 +226,12 @@ UTEST(bpe_tk, encode_replays_learned_merges_in_order) {
     ASSERT_EQ(ids[5], (size_t)-1);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(bpe_tk, decode_maps_ids_back_to_tokens) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_bpe_tk_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_bpe_tk_init(ctx);
     struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
     char train_text[] = "hug hug bug";
 
@@ -245,5 +246,5 @@ UTEST(bpe_tk, decode_maps_ids_back_to_tokens) {
     ASSERT_TRUE(strcmp(decoded, "hug bug") == 0);
 
     free_bpe_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }

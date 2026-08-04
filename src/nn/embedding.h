@@ -43,7 +43,7 @@ static inline struct PicoTensor* pico_embedding_apply(struct PicoContext* ctx, s
         return NULL;
     }
 
-    struct Arena* arena = arena_resolve(ctx->arena);
+    struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for embedding allocation\n");
         return NULL;
@@ -99,7 +99,7 @@ static inline struct PicoEmbedding* pico_embedding_init(struct PicoContext* ctx,
     // embedding_dim: is the size of the vector space each token is embedded into.
     // input_indices: are indices of tokens, and the output will be a tensor containing their corresponding embeddings.
 
-    struct Arena* arena = arena_resolve(ctx->arena);
+    struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for embedding allocation\n");
         return NULL;

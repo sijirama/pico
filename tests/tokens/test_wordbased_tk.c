@@ -5,6 +5,7 @@
 
 #include <string.h>
 
+#include "global.h"
 #include "tokens/wordbased-tk.h"
 #include "utest.h"
 
@@ -19,8 +20,8 @@ static void free_wordbased_map(struct Tokenizer* tokenizer) {
 }
 
 UTEST(wordbased_tk, init_adds_unk_token) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     ASSERT_TRUE(tokenizer != NULL);
     ASSERT_EQ(tokenizer->methods->len(tokenizer), (size_t)1);
@@ -30,12 +31,12 @@ UTEST(wordbased_tk, init_adds_unk_token) {
     ASSERT_TRUE(pico_hashmap_contains(data->word_to_id_map, "<UNK>"));
 
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(wordbased_tk, add_word_assigns_ids_once) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     ASSERT_TRUE(pico_wordbased_add_word(tokenizer, "hello"));
     ASSERT_TRUE(pico_wordbased_add_word(tokenizer, "world"));
@@ -48,12 +49,12 @@ UTEST(wordbased_tk, add_word_assigns_ids_once) {
     ASSERT_TRUE(*(size_t*)pico_hashmap_get(data->word_to_id_map, "world") == 2);
 
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(wordbased_tk, encode_uses_vocab_and_unknown) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     pico_wordbased_add_word(tokenizer, "hello");
     pico_wordbased_add_word(tokenizer, "world");
@@ -67,12 +68,12 @@ UTEST(wordbased_tk, encode_uses_vocab_and_unknown) {
     ASSERT_EQ(ids[3], (size_t)-1);
 
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(wordbased_tk, decode_ids_to_words) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     pico_wordbased_add_word(tokenizer, "hello");
     pico_wordbased_add_word(tokenizer, "world");
@@ -84,12 +85,12 @@ UTEST(wordbased_tk, decode_ids_to_words) {
     ASSERT_TRUE(strcmp(text, "hello world ") == 0);
 
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
 
 UTEST(wordbased_tk, rejects_invalid_inputs) {
-    struct PicoContext ctx = pico_context_init();
-    struct Tokenizer* tokenizer = pico_wordbased_create_init(&ctx);
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct Tokenizer* tokenizer = pico_wordbased_create_init(ctx);
 
     ASSERT_TRUE(pico_wordbased_create_init(NULL) == NULL);
     ASSERT_FALSE(pico_wordbased_add_word(NULL, "x"));
@@ -100,5 +101,5 @@ UTEST(wordbased_tk, rejects_invalid_inputs) {
     ASSERT_TRUE(tokenizer->methods->decode(tokenizer, NULL) == NULL);
 
     free_wordbased_map(tokenizer);
-    pico_context_destroy(&ctx);
+    pico_shutdown(ctx);
 }
