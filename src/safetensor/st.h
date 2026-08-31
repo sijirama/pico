@@ -15,11 +15,18 @@
 */
 
 #pragma once
+#include <stddef.h>
+
+#include "arena.h"
+#define _POSIX_C_SOURCE 200809L
+#include <assert.h>
 #include <cjson/cJSON.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 
 #include "ctx.h"
 #include "tensor.h"
@@ -134,6 +141,64 @@ end:
     return;
 }
 
-struct PicoContext* load_tensor() {
-    return NULL;
+size_t GetFileSize(char* fileName) {
+    FILE* fp = fopen(fileName, "rb");
+    assert(fp != NULL);
+    fseek(fp, 0L, SEEK_END);
+    size_t currentFileSize = ftell(fp);
+    rewind(fp);
+    fclose(fp);
+    return currentFileSize;
+}
+
+unsigned char* LoadSafeTensorData(char* fileName, size_t* fileSizeHolder) {
+    size_t fileSize = GetFileSize(fileName);
+    FILE* fp = fopen(fileName, "rb");
+    assert(fp != NULL);
+
+    int fd = fileno(fp);
+    unsigned char* fileData = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+    assert(fileData != NULL);
+    assert(fileData != MAP_FAILED);
+
+    fclose(fp);
+    *fileSizeHolder = fileSize;
+    return fileData;
+}
+
+size_t* parseSafeTensorHeaderSizeData(struct PicoContext* ctx, unsigned char* mmapd) {
+    size_t* headerLength = arena_alloc(ctx->arena, sizeof(size_t));
+    for(int i = 7; i >= 0; i--) {
+        *headerLength <<= 8;
+        headerLength += mmapd[i];
+    }
+    return headerLength;
+}
+
+char* parseSafeTensorHeader(struct PicoContext* ctx, const unsigned char* mmapd, const size_t* headerLength) {
+    //
+    // make sure that the 8 byte is the beginning of the header string
+    assert(mmapd[8] == '{');
+
+    cJSON* tensorData = cJSON_ParseWithLength(mmapd + 8, *headerLength);
+    assert(tensorData != NULL);
+
+    char* formatted_json = cJSON_Print(tensorData);
+    assert(formatted_json != NULL);
+
+    char* header = arena_alloc(ctx->arena, *headerLength);
+    strcpy(header, formatted_json);
+
+    free(formatted_json);
+    cJSON_Delete(tensorData);
+    return header;
+}
+
+void load_tensor(struct PicoContext* ctx, char* file_name) {
+    size_t fileSize = 0;
+    unsigned char* safeTensorData = LoadSafeTensorData(file_name, &fileSize);
+    assert(safeTensorData != NULL);
+
+    size_t* headerLength = parseSafeTensorHeaderSizeData(ctx, safeTensorData);
+    char * header = parseSafeTensorHeader(ctx, safeTensorData, headerLength);
 }
