@@ -30,7 +30,7 @@
 UTEST(linear, init_sets_dims) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, false);
     ASSERT_TRUE(fc != NULL);
     ASSERT_EQ(fc->in_features, 3);
     ASSERT_EQ(fc->out_features, 4);
@@ -43,7 +43,7 @@ UTEST(linear, init_sets_dims) {
 UTEST(linear, no_bias_is_null) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, false);
     ASSERT_TRUE(fc->bias == NULL);
 
     pico_nn_linear_free(fc);
@@ -55,7 +55,7 @@ UTEST(linear, no_bias_is_null) {
 UTEST(linear, weights_shape) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, false);
     ASSERT_TRUE(fc->weights != NULL);
     ASSERT_EQ(fc->weights->ndim, 2);
     ASSERT_TRUE(fc->weights->shape[0] == 3);  // in_features (the matmul contraction dim)
@@ -70,7 +70,7 @@ UTEST(linear, weights_shape) {
 UTEST(linear, forward_shape_no_bias) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, false);
 
     int64_t si[] = {2, 3};
     struct PicoTensor* x = pico_param(ctx, si, 2);
@@ -91,7 +91,7 @@ UTEST(linear, forward_shape_no_bias) {
 UTEST(linear, forward_values_identity) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 2, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 2, false);
     fc->weights->data[0] = 1.0f;  // [[1,0],
     fc->weights->data[1] = 0.0f;  //  [0,1]]
     fc->weights->data[2] = 0.0f;
@@ -116,7 +116,7 @@ UTEST(linear, forward_values_identity) {
 UTEST(linear, forward_incompatible_returns_null) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, false);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, false);
 
     int64_t si[] = {2, 5};
     struct PicoTensor* x = pico_param(ctx, si, 2);
@@ -133,7 +133,7 @@ UTEST(linear, forward_incompatible_returns_null) {
 UTEST(linear, weights_use_heap_storage) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, true);
     ASSERT_EQ(fc->weights->storage, PICO_TENSOR_STORAGE_HEAP);
     ASSERT_EQ(fc->bias->storage, PICO_TENSOR_STORAGE_HEAP);
 
@@ -144,7 +144,7 @@ UTEST(linear, weights_use_heap_storage) {
 UTEST(linear, free_keeps_params_registered_for_context_cleanup) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, true);
     ASSERT_EQ(ctx->params.size, (size_t)2);
 
     pico_nn_linear_free(fc);
@@ -158,7 +158,7 @@ UTEST(linear, free_keeps_params_registered_for_context_cleanup) {
 UTEST(linear, bias_is_per_output_feature) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, true);
     ASSERT_TRUE(fc->bias != NULL);
     ASSERT_EQ(fc->bias->numel, 4);  // out_features
 
@@ -174,7 +174,7 @@ UTEST(linear, bias_is_per_output_feature) {
 UTEST(linear, forward_with_bias_shape) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 3, 4, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, true);
 
     int64_t si[] = {2, 3};
     struct PicoTensor* x = pico_param(ctx, si, 2);
@@ -194,7 +194,7 @@ UTEST(linear, forward_with_bias_shape) {
 UTEST(linear, forward_with_bias_values) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 1, true);
     fc->weights->data[0] = 3.0f;
     fc->weights->data[1] = 4.0f;
     fc->bias->data[0] = 10.0f;
@@ -217,7 +217,7 @@ UTEST(linear, forward_with_bias_values) {
 UTEST(linear, bias_broadcasts_over_batch) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 1, true);
     fc->weights->data[0] = 1.0f;
     fc->weights->data[1] = 1.0f;
     fc->bias->data[0] = 5.0f;
@@ -247,7 +247,7 @@ UTEST(linear, bias_broadcasts_over_batch) {
 UTEST(linear, backward_populates_grads) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 1, true);  // W,b start at 0 (calloc)
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 1, true);  // W,b start at 0 (calloc)
 
     int64_t si[] = {1, 2};
     struct PicoTensor* x = pico_param(ctx, si, 2);
@@ -278,7 +278,7 @@ UTEST(linear, backward_populates_grads) {
 UTEST(linear, trains_one_step_lowers_loss) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 1, true);
 
     int64_t si[] = {1, 2};
     float x_data[] = {1.0f, 2.0f};
@@ -316,7 +316,7 @@ UTEST(linear, trains_one_step_lowers_loss) {
 UTEST(linear, trains_converges) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
-    struct PicoLinear* fc = pico_nn_linear_init(ctx, 2, 1, true);
+    struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 2, 1, true);
 
     int64_t si[] = {1, 2};
     float x_data[] = {1.0f, 2.0f};

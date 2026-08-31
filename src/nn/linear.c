@@ -2,13 +2,20 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "arena.h"
 #include "ctx.h"
 #include "ops.h"
 #include "tensor.h"
 
-struct PicoLinear* pico_nn_linear_init(struct PicoContext* ctx, int in_features, int out_features, bool bias) {
+struct PicoLinear* pico_nn_linear_init(struct PicoContext* ctx, char* name, int in_features, int out_features,
+                                       bool bias) {
+    if(name == NULL) {
+        fprintf(stderr, "PicoParameterError: no name available for linear init allocation\n");
+        return NULL;
+    }
+
     struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for linear init allocation\n");
@@ -19,14 +26,26 @@ struct PicoLinear* pico_nn_linear_init(struct PicoContext* ctx, int in_features,
     res_shape[0] = in_features;
     res_shape[1] = out_features;
 
-    int64_t* bias_shape = arena_alloc(arena, sizeof(int64_t) * 2);
-    bias_shape[0] = out_features;
+    size_t weights_name_len = strlen(name) + strlen(".weight") + 1;
+    char* weights_name = arena_alloc(arena, weights_name_len);
 
-    struct PicoTensor* weights_t = pico_param(ctx, res_shape, 2);
+    strcpy(weights_name, name);
+    strcat(weights_name, ".weight");
+
+    struct PicoTensor* weights_t = pico_param_named(ctx, weights_name, res_shape, 2);
     struct PicoTensor* bias_t = NULL;
 
     if(bias == true) {
-        bias_t = pico_param(ctx, bias_shape, 1);
+        int64_t* bias_shape = arena_alloc(arena, sizeof(int64_t));
+        bias_shape[0] = out_features;
+
+        size_t bias_name_len = strlen(name) + strlen(".bias") + 1;
+        char* bias_name = arena_alloc(arena, bias_name_len);
+
+        strcpy(bias_name, name);
+        strcat(bias_name, ".bias");
+
+        bias_t = pico_param_named(ctx, bias_name, bias_shape, 1);
     }
 
     struct PicoLinear* linear = malloc(sizeof(struct PicoLinear));

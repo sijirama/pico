@@ -15,6 +15,7 @@ enum PicoTensorStorage { PICO_TENSOR_STORAGE_ARENA, PICO_TENSOR_STORAGE_HEAP };
 // use heap storage and ctx owns them. temp tensors use arena storage and die
 // when the ctx arena is reset or destroyed.
 struct PicoTensor {
+    char * name;
     int64_t* shape;
     int64_t* strides;
     float* data;
@@ -32,6 +33,7 @@ void pico_backward(struct PicoContext* ctx, struct PicoTensor* entry);
 
 // INFO: params are ctx-owned heap tensors. they survive arena resets.
 struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_param_named(struct PicoContext* ctx, char * name , int64_t* shape, uint8_t ndim);
 
 // INFO: create_tensor is the temp constructor. ops use this for graph outputs,
 // so the result is owned by the arena and pico_free intentionally ignores it.
