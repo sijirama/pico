@@ -2,6 +2,7 @@ CC = gcc
 AR = ar
 CFLAGS = -std=c11 -I src -g -Wall -pthread -fopenmp
 LDFLAGS = -lm -pthread -fopenmp
+CJSON_LIBS = -lcjson
 
 SRC_DIR = src
 INC_DIR = src
@@ -42,7 +43,7 @@ lib: $(STATIC_LIB)
 
 $(TARGET): $(OBJS) $(MAIN_OBJ)
 	@echo "Linking $@..."
-	@$(CC) $^ -o $@ $(LDFLAGS)
+	@$(CC) $^ -o $@ $(LDFLAGS) $(CJSON_LIBS)
 
 $(STATIC_LIB): $(OBJS)
 	@echo "Archiving $@..."
@@ -61,7 +62,7 @@ $(OBJ_DIR)/test_%.o: %.c | $(OBJ_DIR)
 
 $(TEST_TARGET): $(OBJS) $(TEST_OBJS)
 	@echo "Linking $@..."
-	@$(CC) $^ -o $@ $(LDFLAGS)
+	@$(CC) $^ -o $@ $(LDFLAGS) $(CJSON_LIBS)
 
 $(OBJ_DIR):
 	@mkdir -p $(OBJ_DIR)
@@ -77,7 +78,7 @@ run: $(TARGET)
 # Compiles sources directly (not via obj/) so it never mixes with the normal build.
 asan:
 	@echo "Building tests with AddressSanitizer..."
-	@$(CC) $(CFLAGS) -I $(TEST_DIR) $(ASAN_FLAGS) $(SRCS) $(TEST_SRCS) -o $(ASAN_TARGET) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -I $(TEST_DIR) $(ASAN_FLAGS) $(SRCS) $(TEST_SRCS) -o $(ASAN_TARGET) $(LDFLAGS) $(CJSON_LIBS)
 	@echo "Running tests under ASan..."
 	@./$(ASAN_TARGET)
 

@@ -15,6 +15,7 @@ SRC_DIR  = ../src
 MATMUL_DIR = matmul
 CFLAGS   = -std=c11 -O2 -I $(SRC_DIR) -Wall -pthread -fopenmp
 LDFLAGS  = -lm -pthread -fopenmp
+CJSON_LIBS = -lcjson
 BIN      = bin
 
 # pico library sources (everything except the app entrypoint)
@@ -34,31 +35,31 @@ all: $(BENCHES)
 # .PHONY so every invocation rebuilds + reruns with a fresh binary
 $(ROOT_BENCHES): %: bench_%.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2)"
-	@$(CC) $(CFLAGS) $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS)
+	@$(CC) $(CFLAGS) $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS)
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
 $(MATMUL_BENCHES): %: $(MATMUL_DIR)/bench_%.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2)"
-	@$(CC) $(CFLAGS) $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS)
+	@$(CC) $(CFLAGS) $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS)
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
 blas_openblas: bench_blas_compare.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2, OpenBLAS)"
-	@$(CC) $(CFLAGS) -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lopenblas
+	@$(CC) $(CFLAGS) -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS) -lopenblas
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
 blas_blis: bench_blas_compare.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2, BLIS)"
-	@$(CC) $(CFLAGS) -DBLAS_NAME=\"BLIS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lblis
+	@$(CC) $(CFLAGS) -DBLAS_NAME=\"BLIS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS) -lblis
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
 matmul_focused_openblas: $(MATMUL_DIR)/bench_matmul_focused.c $(SRCS) | $(BIN)
 	@echo ">> building $@  (-O2, OpenBLAS)"
-	@$(CC) $(CFLAGS) -DUSE_CBLAS -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -lopenblas
+	@$(CC) $(CFLAGS) -DUSE_CBLAS -DBLAS_NAME=\"OpenBLAS\" $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS) -lopenblas
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 
@@ -68,7 +69,7 @@ matmul_mkl: $(MATMUL_DIR)/bench_matmul_mkl.c $(MATMUL_DIR)/bench_matmul_focused.
 		exit 1; \
 	fi
 	@echo ">> building $@  (-O2, Intel MKL)"
-	@$(CC) $(CFLAGS) -I$(MKLROOT)/include $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) -L$(MKLROOT)/lib/intel64 -Wl,-rpath,$(MKLROOT)/lib/intel64 -lmkl_rt
+	@$(CC) $(CFLAGS) -I$(MKLROOT)/include $< $(SRCS) -o $(BIN)/$@ $(LDFLAGS) $(CJSON_LIBS) -L$(MKLROOT)/lib/intel64 -Wl,-rpath,$(MKLROOT)/lib/intel64 -lmkl_rt
 	@echo ">> running  $@"
 	@./$(BIN)/$@
 

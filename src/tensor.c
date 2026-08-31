@@ -1,6 +1,7 @@
 #include "tensor.h"
 
 #include <math.h>
+#include <sched.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +51,10 @@ void pico_backward(struct PicoContext* ctx, struct PicoTensor* entry) {
 // INFO: params are heap-backed because optimizers keep pointers to them across
 // arena resets. weights, biases, and long-lived input data should use this path.
 struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t ndim) {
+    return pico_param_named(ctx, NULL, shape, ndim);
+}
+
+struct PicoTensor* pico_param_named(struct PicoContext* ctx, char* name, int64_t* shape, uint8_t ndim) {
     struct PicoTensor* tensor = (struct PicoTensor*)calloc(1, sizeof(struct PicoTensor));
     if(tensor == NULL) {
         printf("Memory allocation failed!\n");
@@ -67,6 +72,12 @@ struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t n
     }
     memcpy(tensor->shape, shape, ndim * sizeof(int64_t));
 
+    tensor->name = NULL;
+    if(name != NULL) {
+        tensor->name = malloc(strlen(name) * sizeof(char) + 1);
+        strcpy(tensor->name, name);
+    }
+
     // compute number of elements
     int numel = pico_compute_numel(tensor->shape, tensor->ndim);
 
@@ -77,6 +88,7 @@ struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t n
     // check if any inner allocations failed
     if(tensor->data == NULL || tensor->grad == NULL || tensor->strides == NULL) {
         free(tensor->shape);
+        free(tensor->name);
         free(tensor->data);
         free(tensor->grad);
         free(tensor->strides);
@@ -177,6 +189,9 @@ void pico_tensor_free_heap(struct PicoTensor* tensor) {
     }
     if(tensor->grad != NULL) {
         free(tensor->grad);
+    }
+    if(tensor->name != NULL) {
+        free(tensor->name);
     }
 
     // free the dynamic parent array if it was allocated

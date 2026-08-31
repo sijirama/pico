@@ -72,8 +72,8 @@ int main(void) {
     struct PicoTensor* x = pico_tensor_from_data(ctx, x_shape, 2, x_values);
     struct PicoTensor* y = pico_tensor_from_data(ctx, y_shape, 2, y_values);
 
-    struct PicoLinear* l1 = pico_nn_linear_init(ctx, 2, 4, true);
-    struct PicoLinear* l2 = pico_nn_linear_init(ctx, 4, 1, true);
+    struct PicoLinear* l1 = pico_nn_linear_init(ctx, "l1", 2, 4, true);
+    struct PicoLinear* l2 = pico_nn_linear_init(ctx, "l2", 4, 1, true);
     init_layer_weights(l1, l2);
 
     struct PicoOptimSGD* opt = pico_optim_sgd_init(0.001f);
