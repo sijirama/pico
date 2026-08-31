@@ -16,22 +16,121 @@
 
 #pragma once
 #include <cjson/cJSON.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "stdlib.h"
 #include "ctx.h"
+#include "tensor.h"
 
 void save_tensor(struct PicoContext* ctx, char* file_name) {
-    char* header_length_in_bytes = malloc(8 * sizeof(char));
+    if(ctx == NULL || file_name == NULL) {
+        fprintf(stderr, "PicoSaveSafeTensor: missing context or file name\n");
+        return;
+    }
+
+    FILE* file;
+    file = fopen(file_name, "wb");
+    if(file == NULL) {
+        fprintf(stderr, "PicoSaveSafeTensor: Could not open file \n");
+        return;
+    }
+
+    char* header_string = NULL;
+    char* padded_header = NULL;
+
+    // construct header
     cJSON* header = cJSON_CreateObject();
     if(header == NULL) {
         goto end;
     }
 
-    //INFO: build out header section.
+    // INFO: build out header section.
 
+    struct PicoTensor* tensor = NULL;
+    uint64_t data_offset = 0;
+    uint64_t tensor_bytes;
+    uint64_t start;
+    uint64_t end;
+
+    for(int i = 0; i < ctx->params.size; i++) {
+        tensor = ctx->params.data[i];
+        if(tensor->name == NULL) {
+            fprintf(stderr, "PicoSaveSafeTensor: cannot save unnamed tensor\n");
+            goto end;
+        }
+
+        cJSON* tensorObj = cJSON_CreateObject();
+
+        if(tensorObj == NULL) {
+            goto end;
+        }
+
+        // add dtype to object
+        if(cJSON_AddStringToObject(tensorObj, "dtype", "F32") == NULL) {
+            goto end;
+        }
+
+        // add array of shape to object
+        cJSON* shape = cJSON_AddArrayToObject(tensorObj, "shape");
+        if(shape == NULL)
+            goto end;
+
+        for(int i = 0; i < tensor->ndim; i++) {
+            cJSON* num = cJSON_CreateNumber(tensor->shape[i]);
+            cJSON_AddItemToArray(shape, num);
+        }
+
+        // add offsets - add it later
+        tensor_bytes = tensor->numel * sizeof(float);
+        start = data_offset;
+        end = start + tensor_bytes;
+        data_offset = end;
+
+        cJSON* offsets = cJSON_AddArrayToObject(tensorObj, "data_offsets");
+        if(offsets == NULL)
+            goto end;
+        cJSON_AddItemToArray(offsets, cJSON_CreateNumber(start));
+        cJSON_AddItemToArray(offsets, cJSON_CreateNumber(end));
+
+        cJSON_AddItemToObject(header, tensor->name, tensorObj);
+    }
+
+    header_string = cJSON_PrintUnformatted(header);
+    if(header_string == NULL) {
+        goto end;
+    }
+
+    uint64_t raw_header_size = strlen(header_string);
+    uint64_t header_size = raw_header_size;
+    uint64_t padding = header_size % 8;
+    if(padding != 0) {
+        header_size += 8 - padding;
+    }
+
+    padded_header = malloc(header_size + 1);
+    if(padded_header == NULL) {
+        goto end;
+    }
+    memcpy(padded_header, header_string, raw_header_size);
+    memset(padded_header + raw_header_size, ' ', header_size - raw_header_size);
+    padded_header[header_size] = '\0';
+
+    fwrite(&header_size, sizeof(uint64_t), 1, file);
+    fwrite(padded_header, 1, header_size, file);
+
+    for(int i = 0; i < ctx->params.size; i++) {
+        tensor = ctx->params.data[i];
+        fwrite(tensor->data, sizeof(float), tensor->numel, file);
+    }
+
+    goto end;
 end:
     cJSON_Delete(header);
-    free(header_length_in_bytes);
+    fclose(file);
+    free(header_string);
+    free(padded_header);
     return;
 }
 
