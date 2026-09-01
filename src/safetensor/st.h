@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 /*
     custom safetensor serializer and deserializer.
     custom loading safetetnsor in c - https://leetarxiv.substack.com/p/parsing-safetensors-file-format
@@ -18,7 +22,6 @@
 #include <stddef.h>
 
 #include "arena.h"
-#define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <cjson/cJSON.h>
 #include <stdbool.h>
@@ -180,7 +183,7 @@ char* parseSafeTensorHeader(struct PicoContext* ctx, const unsigned char* mmapd,
     // make sure that the 8 byte is the beginning of the header string
     assert(mmapd[8] == '{');
 
-    cJSON* tensorData = cJSON_ParseWithLength(mmapd + 8, *headerLength);
+    cJSON* tensorData = cJSON_ParseWithLength((const char*)mmapd + 8, *headerLength);
     assert(tensorData != NULL);
 
     char* formatted_json = cJSON_Print(tensorData);
@@ -200,5 +203,6 @@ void load_tensor(struct PicoContext* ctx, char* file_name) {
     assert(safeTensorData != NULL);
 
     size_t* headerLength = parseSafeTensorHeaderSizeData(ctx, safeTensorData);
-    char * header = parseSafeTensorHeader(ctx, safeTensorData, headerLength);
+    char* header = parseSafeTensorHeader(ctx, safeTensorData, headerLength);
+    (void)header;
 }
