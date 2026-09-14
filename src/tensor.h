@@ -54,18 +54,6 @@ void pico_tensor_free_heap(struct PicoTensor* tensor);
 // pretty-print a tensor's shape + data, nested by shape (respects strides).
 void pico_tensor_print(struct PicoTensor* t);
 
-// ====================================== important ops
-// TODO: siji don't forget about these guys
-
-void pico_transpose(struct PicoTensor* tensor);
-void pico_transpose_2d(struct PicoTensor* tensor);
-
-void pico_transpose_reshape(struct PicoTensor* tensor, int64_t* shape, int ndim);
-
-struct PicoTensor* pico_transpose_clone(struct PicoTensor* tensor);
-
-struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struct PicoTensor* b, int dim);
-
 // returns a tensor filled with random numbers from a uniform distribution on the interval ([0,1])
 struct PicoTensor* pico_rand(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 

@@ -288,22 +288,6 @@ void pico_tensor_print(struct PicoTensor* t) {
     printf("\n");
 }
 
-void pico_transpose_2d(struct PicoTensor* tensor) {
-    if(tensor->ndim != 2) {
-        fprintf(stderr, "Error: This is not a rank 2 tensor!\n");
-        return;
-    }
-
-    // swap the r and c
-    int c = tensor->shape[1];
-    tensor->shape[1] = tensor->shape[0];
-    tensor->shape[0] = c;
-
-    int sc = tensor->strides[1];
-    tensor->strides[1] = tensor->strides[0];
-    tensor->strides[0] = sc;
-}
-
 // ============================= pico_rand
 
 // Fast Xorshift32 generator
@@ -336,75 +320,6 @@ struct PicoTensor* pico_rand(struct PicoContext* ctx, int64_t* shape, uint8_t nd
 }
 
 // ============================= pico_randn
-
-struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struct PicoTensor* b, int dim) {
-    if(a->backend != b->backend) {
-        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
-        return NULL;
-    }
-    if(a->ndim != b->ndim) {
-        fprintf(stderr,
-                "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch found in "
-                "ndim!\n");
-        return NULL;
-    }
-
-    struct Arena* arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for cat allocation\n");
-        return NULL;
-    }
-
-    int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * a->ndim);
-
-    // dim=0 means stack them over each other dim=1 means side by side
-    for(int i = 0; i < a->ndim; i++) {
-        if(i == dim) {
-            res_shape[i] = a->shape[i] + b->shape[i];
-            continue;
-        }
-        if(a->shape[i] != b->shape[i]) {
-            fprintf(stderr,
-                    "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch "
-                    "found in shape!\n");
-            return NULL;
-        }
-        res_shape[i] = a->shape[i];
-    }
-
-    struct PicoTensor* out = pico_create_tensor(ctx, res_shape, a->ndim);
-
-    float* src_a = (float*)a->data;
-    float* src_b = (float*)b->data;
-    float* dst = (float*)out->data;
-
-    int64_t outer_count = 1;
-    for(int i = 0; i < dim; i++) {
-        outer_count *= a->shape[i];
-    }
-
-    int64_t inner_size = 1;
-    for(int i = dim + 1; i < a->ndim; i++) {
-        inner_size *= a->shape[i];
-    }
-
-    int64_t a_copy_size = a->shape[dim] * inner_size;
-    int64_t b_copy_size = b->shape[dim] * inner_size;
-
-    for(int64_t o = 0; o < outer_count; o++) {
-        // 1. Copy chunk from tensor A
-        memcpy(dst, src_a, a_copy_size * sizeof(float));
-        dst += a_copy_size;
-        src_a += a_copy_size;
-
-        // 2. Copy chunk from tensor B right next to it
-        memcpy(dst, src_b, b_copy_size * sizeof(float));
-        dst += b_copy_size;
-        src_b += b_copy_size;
-    }
-
-    return out;
-}
 
 // INFO: Box-Muller gives us two normal samples from two uniform samples. generate
 // by flat numel, then write into a tensor with the original requested shape so

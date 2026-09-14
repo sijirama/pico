@@ -4,6 +4,7 @@
 
 #include "ctx.h"
 #include "tensor.h"
+#include "tensor_ops.h"
 #include "arena.h"
 #include "global.h"
 #include "ops.h"
