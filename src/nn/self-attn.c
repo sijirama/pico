@@ -1,10 +1,64 @@
 #include "self-attn.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "arena.h"
+#include "ops.h"
+#include "tensor.h"
+#include "tensor_ops.h"
+
+void pico_nn_attn_causal_mask(struct PicoTensor* table) {}
+
+struct PicoTensor* pico_nn_attn_forward(struct PicoContext* ctx, struct PicoAttn* attn, struct PicoTensor* input) {
+    struct PicoTensor* Q = pico_matmul(ctx, input, attn->Q);  // input (B x S x E) @ Q_w (E x d_k)
+    struct PicoTensor* K = pico_matmul(ctx, input, attn->K);  // input (B x S x E) @ K_w (E x d_k)
+    struct PicoTensor* V = pico_matmul(ctx, input, attn->V);  // input (B x S x E) @ V_w (E x d_k)
+
+    // apply rope to Q and K
+
+    // ----------
+
+    pico_transpose_2d(K);
+
+    int ndim = 4;
+    int64_t* res_shape = arena_alloc(ctx->arena, sizeof(int64_t) * ndim);
+    res_shape[0] = Q->shape[0];
+    res_shape[1] = Q->shape[1];
+    res_shape[2] = attn->num_of_heads;
+    res_shape[3] = attn->d_k;
+
+    pico_view(ctx, Q, res_shape, ndim);  // (B, S, num_heads, d_k)
+    pico_view(ctx, K, res_shape, ndim);  // (B, S, num_heads, d_k)
+    pico_view(ctx, V, res_shape, ndim);  // (B, S, num_heads, d_k)
+
+    int64_t permute_dims[4] = {0, 2, 1, 3};
+    pico_permute(ctx, Q, permute_dims);  // (B, num_heads, S, d_k)
+    pico_permute(ctx, K, permute_dims);  // (B, num_heads, S, d_k)
+    pico_permute(ctx, V, permute_dims);  // (B, num_heads, S, d_k)
+
+    struct PicoTensor* QK_t = pico_matmul(ctx, Q, K);
+    struct PicoTensor* d_k_saclar = pico_tensor_from_scalar(ctx, (1 / sqrtf(attn->d_k)));
+    struct PicoTensor* QK_scaled = pico_mul(ctx, QK_t, d_k_saclar);
+    pico_nn_attn_causal_mask(QK_scaled);
+    struct PicoTensor* A = pico_softmax(ctx, QK_scaled, 1);
+    struct PicoTensor* O = pico_matmul(ctx, A, V);
+
+    int64_t permute_dims_back[4] = {0, 1, 2, 3};
+    pico_permute(ctx, O, permute_dims);  // (B, num_heads, S, d_k)
+
+    ndim = 3;
+    res_shape[0] = Q->shape[0];
+    res_shape[1] = Q->shape[1];
+    res_shape[2] = attn->num_of_heads * attn->d_k;
+    pico_view(ctx, O, res_shape, ndim);  // (B, S, num_heads * d_k)
+
+    struct PicoTensor* final = pico_matmul(ctx, O, attn->O);  // (B,S,embed_dim)
+
+    return final;
+}
 
 static char* pico_attn_param_name(struct Arena* arena, char* name, char* suffix) {
     size_t len = strlen(name) + strlen(suffix) + 1;
