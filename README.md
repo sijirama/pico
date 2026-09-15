@@ -37,4 +37,6 @@ int main(void) {
 }
 ```
 
-LLM assistance is only used to for docs and tests
+LLM assistance is mostly for docs, tests, and small implementation corners where
+i don't really care about pretending i hand-rolled every tiny detail. the RoPE
+implementation in self-attention is one of those.

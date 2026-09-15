@@ -16,5 +16,6 @@ struct PicoAttn {
 };
 
 struct PicoAttn* pico_nn_attn_init(struct PicoContext* ctx, char* name, int embed_dim, int num_heads, int d_k);
+void pico_nn_attn_apply_rope(struct PicoTensor* tensor, int num_heads, int d_k);
 struct PicoTensor* pico_nn_attn_forward(struct PicoContext* ctx, struct PicoAttn* attn, struct PicoTensor* input);
 void pico_nn_attn_free(struct PicoAttn* attn);

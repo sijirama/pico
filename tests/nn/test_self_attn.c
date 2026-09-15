@@ -1,7 +1,12 @@
 #include "utest.h"
 
+#include <math.h>
+
 #include "global.h"
 #include "nn/self-attn.h"
+#include "tensor.h"
+
+#define ASSERT_NEAR_FLOAT(actual, expected) ASSERT_NEAR((actual), (expected), 1e-5f)
 
 UTEST(self_attn, init_sets_dims_and_projection_shapes) {
     struct PicoContext* ctx = pico_init_verbose(false);
@@ -75,5 +80,29 @@ UTEST(self_attn, init_rejects_invalid_inputs) {
     ASSERT_TRUE(pico_nn_attn_init(ctx, "attn", 4, 2, 0) == NULL);
 
     ASSERT_EQ(ctx->params.size, (size_t)0);
+    pico_shutdown(ctx);
+}
+
+UTEST(self_attn, rope_rotates_qk_pairs_by_position) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2, 4};
+    float values[] = {
+        1.0f, 2.0f, 3.0f, 4.0f,
+        1.0f, 0.0f, 1.0f, 0.0f,
+    };
+
+    struct PicoTensor* q = pico_tensor_from_data(ctx, shape, 2, values);
+    pico_nn_attn_apply_rope(q, 1, 4);
+
+    ASSERT_NEAR_FLOAT(q->data[0], 1.0f);
+    ASSERT_NEAR_FLOAT(q->data[1], 2.0f);
+    ASSERT_NEAR_FLOAT(q->data[2], 3.0f);
+    ASSERT_NEAR_FLOAT(q->data[3], 4.0f);
+
+    ASSERT_NEAR_FLOAT(q->data[4], cosf(1.0f));
+    ASSERT_NEAR_FLOAT(q->data[5], sinf(1.0f));
+    ASSERT_NEAR_FLOAT(q->data[6], cosf(0.01f));
+    ASSERT_NEAR_FLOAT(q->data[7], sinf(0.01f));
+
     pico_shutdown(ctx);
 }

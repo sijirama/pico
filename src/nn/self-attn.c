@@ -12,14 +12,95 @@
 
 void pico_nn_attn_causal_mask(struct PicoTensor* table) {}
 
+static int64_t pico_attn_rope_offset(struct PicoTensor* tensor, int64_t batch, int64_t pos, int64_t head,
+                                     int64_t head_i) {
+    if(tensor->ndim == 2) {
+        return pos * tensor->strides[0] + (head + head_i) * tensor->strides[1];
+    }
+    if(tensor->ndim == 3) {
+        return pos * tensor->strides[0] + head * tensor->strides[1] + head_i * tensor->strides[2];
+    }
+
+    return batch * tensor->strides[0] + pos * tensor->strides[1] + head * tensor->strides[2] +
+           head_i * tensor->strides[3];
+}
+
+void pico_nn_attn_apply_rope(struct PicoTensor* tensor, int num_heads, int d_k) {
+    if(tensor == NULL || num_heads <= 0 || d_k <= 0) {
+        return;
+    }
+
+    if((d_k % 2) != 0) {
+        fprintf(stderr, "PicoAttentionError: rope needs an even d_k\n");
+        return;
+    }
+
+    int64_t batch_count = 1;
+    int64_t seq_len = 0;
+    int64_t head_stride = 0;
+
+    if(tensor->ndim == 2) {
+        if(tensor->shape[1] != num_heads * d_k) {
+            fprintf(stderr, "PicoAttentionError: rope expected [seq, num_heads * d_k]\n");
+            return;
+        }
+
+        seq_len = tensor->shape[0];
+        head_stride = d_k;
+    } else if(tensor->ndim == 3) {
+        if(tensor->shape[1] != num_heads || tensor->shape[2] != d_k) {
+            fprintf(stderr, "PicoAttentionError: rope expected [seq, num_heads, d_k]\n");
+            return;
+        }
+
+        seq_len = tensor->shape[0];
+        head_stride = 1;
+    } else if(tensor->ndim == 4) {
+        if(tensor->shape[2] != num_heads || tensor->shape[3] != d_k) {
+            fprintf(stderr, "PicoAttentionError: rope expected [batch, seq, num_heads, d_k]\n");
+            return;
+        }
+
+        batch_count = tensor->shape[0];
+        seq_len = tensor->shape[1];
+        head_stride = 1;
+    } else {
+        fprintf(stderr, "PicoAttentionError: rope only supports 2d, 3d, or 4d tensors\n");
+        return;
+    }
+
+    for(int64_t b = 0; b < batch_count; b++) {
+        for(int64_t pos = 0; pos < seq_len; pos++) {
+            for(int64_t h = 0; h < num_heads; h++) {
+                int64_t head_base = h * head_stride;
+
+                for(int64_t i = 0; i < d_k; i += 2) {
+                    float inv_freq = 1.0f / powf(10000.0f, (float)i / (float)d_k);
+                    float angle = (float)pos * inv_freq;
+                    float cos_v = cosf(angle);
+                    float sin_v = sinf(angle);
+
+                    int64_t even_offset = pico_attn_rope_offset(tensor, b, pos, head_base, i);
+                    int64_t odd_offset = pico_attn_rope_offset(tensor, b, pos, head_base, i + 1);
+
+                    float even = tensor->data[even_offset];
+                    float odd = tensor->data[odd_offset];
+
+                    tensor->data[even_offset] = even * cos_v - odd * sin_v;
+                    tensor->data[odd_offset] = even * sin_v + odd * cos_v;
+                }
+            }
+        }
+    }
+}
+
 struct PicoTensor* pico_nn_attn_forward(struct PicoContext* ctx, struct PicoAttn* attn, struct PicoTensor* input) {
     struct PicoTensor* Q = pico_matmul(ctx, input, attn->Q);  // input (B x S x E) @ Q_w (E x d_k)
     struct PicoTensor* K = pico_matmul(ctx, input, attn->K);  // input (B x S x E) @ K_w (E x d_k)
     struct PicoTensor* V = pico_matmul(ctx, input, attn->V);  // input (B x S x E) @ V_w (E x d_k)
 
-    // apply rope to Q and K
-
-    // ----------
+    pico_nn_attn_apply_rope(Q, attn->num_of_heads, attn->d_k);
+    pico_nn_attn_apply_rope(K, attn->num_of_heads, attn->d_k);
 
     pico_transpose_2d(K);
 
