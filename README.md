@@ -38,5 +38,5 @@ int main(void) {
 ```
 
 LLM assistance is mostly for docs, tests, and small implementation corners where
-i don't really care about pretending i hand-rolled every tiny detail. the RoPE
-implementation in self-attention is one of those.
+i don't really care about pretending i hand-rolled every tiny detail. `pico_permute`
+and the RoPE implementation in self-attention are those kind of things.

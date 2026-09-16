@@ -10,7 +10,42 @@
 #include "tensor.h"
 #include "tensor_ops.h"
 
-void pico_nn_attn_causal_mask(struct PicoTensor* table) {}
+void pico_nn_attn_causal_mask(struct PicoTensor* table) {
+    if(table == NULL || table->data == NULL) {
+        return;
+    }
+
+    // Expected attention score shape:
+    // (B, num_heads, S, S)
+    if(table->ndim != 4) {
+        fprintf(stderr, "PicoAttentionError: causal mask expects a 4D tensor\n");
+        return;
+    }
+
+    int64_t B = table->shape[0];
+    int64_t H = table->shape[1];
+    int64_t Q = table->shape[2];
+    int64_t K = table->shape[3];
+
+    // For ordinary causal self-attention, Q == K == S.
+    if(Q != K) {
+        fprintf(stderr, "PicoAttentionError: causal mask expects square attention scores\n");
+        return;
+    }
+
+    for(int64_t b = 0; b < B; b++) {
+        for(int64_t h = 0; h < H; h++) {
+            for(int64_t q = 0; q < Q; q++) {
+                for(int64_t k = q + 1; k < K; k++) {
+                    int64_t offset =
+                        b * table->strides[0] + h * table->strides[1] + q * table->strides[2] + k * table->strides[3];
+
+                    table->data[offset] = -INFINITY;
+                }
+            }
+        }
+    }
+}
 
 static int64_t pico_attn_rope_offset(struct PicoTensor* tensor, int64_t batch, int64_t pos, int64_t head,
                                      int64_t head_i) {
@@ -102,8 +137,6 @@ struct PicoTensor* pico_nn_attn_forward(struct PicoContext* ctx, struct PicoAttn
     pico_nn_attn_apply_rope(Q, attn->num_of_heads, attn->d_k);
     pico_nn_attn_apply_rope(K, attn->num_of_heads, attn->d_k);
 
-    pico_transpose_2d(K);
-
     int ndim = 4;
     int64_t* res_shape = arena_alloc(ctx->arena, sizeof(int64_t) * ndim);
     res_shape[0] = Q->shape[0];
@@ -120,21 +153,31 @@ struct PicoTensor* pico_nn_attn_forward(struct PicoContext* ctx, struct PicoAttn
     pico_permute(ctx, K, permute_dims);  // (B, num_heads, S, d_k)
     pico_permute(ctx, V, permute_dims);  // (B, num_heads, S, d_k)
 
+    // transpose with permute
+    int64_t k_transpose_dims[4] = {0, 1, 3, 2};
+    pico_permute(ctx, K, k_transpose_dims);  // (B, num_heads, d_k, S)
+
+    // Q:    (B, num_heads, S, d_k)
+    // K^T:  (B, num_heads, d_k, S)
+    //
+    // QK_t: (B, num_heads, S, S)
     struct PicoTensor* QK_t = pico_matmul(ctx, Q, K);
+
     struct PicoTensor* d_k_saclar = pico_tensor_from_scalar(ctx, (1 / sqrtf(attn->d_k)));
-    struct PicoTensor* QK_scaled = pico_mul(ctx, QK_t, d_k_saclar);
+    struct PicoTensor* QK_scaled = pico_mul(ctx, QK_t, d_k_saclar);  // (B, num_heads, S, S)
     pico_nn_attn_causal_mask(QK_scaled);
     struct PicoTensor* A = pico_softmax(ctx, QK_scaled, 1);
-    struct PicoTensor* O = pico_matmul(ctx, A, V);
 
-    int64_t permute_dims_back[4] = {0, 1, 2, 3};
-    pico_permute(ctx, O, permute_dims);  // (B, num_heads, S, d_k)
+    struct PicoTensor* O = pico_matmul(ctx, A, V);  // (B, num_heads, S, d_k)
+
+    int64_t permute_dims_back[4] = {0, 2, 1, 3};
+    pico_permute(ctx, O, permute_dims_back);  // (B, S, num_heads, d_k)
 
     ndim = 3;
-    res_shape[0] = Q->shape[0];
-    res_shape[1] = Q->shape[1];
+    res_shape[0] = O->shape[0];
+    res_shape[1] = O->shape[1];
     res_shape[2] = attn->num_of_heads * attn->d_k;
-    pico_view(ctx, O, res_shape, ndim);  // (B, S, num_heads * d_k)
+    pico_view(ctx, O, res_shape, ndim);  // (B, S, num_heads * d_k) = (B,S,embed_dim)
 
     struct PicoTensor* final = pico_matmul(ctx, O, attn->O);  // (B,S,embed_dim)
 
