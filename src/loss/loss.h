@@ -1,6 +1,6 @@
 
 #pragma once
-#include "tensor.h"
+#include "../tensor.h"
 
 struct PicoContext;
 

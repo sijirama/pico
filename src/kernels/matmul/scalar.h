@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tensor.h"
+#include "../../tensor.h"
 
 static inline void pico_matmul_cpu_scalar(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     int rows = a->shape[0];

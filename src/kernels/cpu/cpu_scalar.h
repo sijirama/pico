@@ -2,7 +2,7 @@
 
 #include <math.h>
 
-#include "tensor.h"
+#include "../../tensor.h"
 
 // scalar (no SIMD) element-wise add with broadcasting.
 // out is pre-allocated by the op with the broadcasted shape; we just fill it.

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "global.h"
-#include "kernels/cpu/cpu_avx_2.h"
-#include "kernels/cpu/cpu_scalar.h"
-#include "kernels/matmul/cpu.h"
-#include "tensor.h"
+#include "../global.h"
+#include "cpu/cpu_avx_2.h"
+#include "cpu/cpu_scalar.h"
+#include "matmul/cpu.h"
+#include "../tensor.h"
 
 // CPU dispatch: pick the kernel variant for the detected SIMD level.
 // g_simd_level is set once by pico_init(); default falls back to scalar so an
@@ -70,7 +70,7 @@ static inline void pico_tan_cpu(struct PicoTensor* a, struct PicoTensor* out) {
             pico_tan_cpu_scalar(a, out);
     }
 }
-
+ 
 static inline void pico_tanh_cpu(struct PicoTensor* a, struct PicoTensor* out) {
     switch(g_simd_level) {
         default:

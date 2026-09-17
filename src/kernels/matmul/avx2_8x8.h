@@ -2,7 +2,7 @@
 
 #include <immintrin.h>
 
-#include "tensor.h"
+#include "../../tensor.h"
 
 static inline void pico_matmul_cpu_avx_kernel_scalar_Xx8(struct PicoTensor* a, struct PicoTensor* b,
                                                          struct PicoTensor* out, int k_dim, int i, int j, int roll) {

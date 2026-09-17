@@ -108,7 +108,7 @@ static inline int64_t* pad_shape(struct PicoContext* ctx, struct PicoTensor* sma
         return NULL;
     }
 
-    int64_t* padded = arena_alloc(arena, sizeof(int64_t) * ndim);
+    int64_t* padded = (int64_t*)arena_alloc(arena, sizeof(int64_t) * ndim);
     int diff = ndim - smaller->ndim;
     for(int i = 0; i < ndim; i++) {
         if(i < diff) {

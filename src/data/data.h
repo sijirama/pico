@@ -15,18 +15,18 @@ needs, like csv rows, token ids, images, or generated samples.
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "ctx.h"
+#include "../ctx.h"
 
 struct PicoTensor;
 struct Dataset;
 
 struct DatasetItem {
-    struct PicoTensor* x;
-    struct PicoTensor* y;
+    struct PicoTensor *x;
+    struct PicoTensor *y;
 };
 
 struct DataBatch {
-    struct DatasetItem* items;
+    struct DatasetItem *items;
     size_t size;
 };
 
@@ -34,9 +34,9 @@ struct DataBatch {
 // long as it can tell us its length, return one item by index, and clean up any
 // private state it owns.
 struct DatasetVTable {
-    size_t (*len)(const struct Dataset* self);
-    struct DatasetItem (*get)(const struct Dataset* self, size_t idx);
-    void (*free)(struct Dataset* self);
+    size_t (*len)(const struct Dataset *self);
+    struct DatasetItem (*get)(const struct Dataset *self, size_t idx);
+    void (*free)(struct Dataset *self);
 };
 
 // INFO: funcs is the public interface, data is the private body. for a text
@@ -44,23 +44,23 @@ struct DatasetVTable {
 // CsvDatasetData, for images it can point to ImageDatasetData. pico does not
 // care about the real type, only the dataset functions do.
 struct Dataset {
-    const struct DatasetVTable* funcs;
-    void* data;
+    const struct DatasetVTable *funcs;
+    void *data;
 };
 
 // INFO: dataloader does not know if the data came from text, csv, images, or
 // a remote source. it only asks the dataset for items and groups them together
 // into batches.
 struct DataLoader {
-    struct PicoContext* ctx;
-    struct Dataset* dataset;
+    struct PicoContext *ctx;
+    struct Dataset *dataset;
     size_t batch_size;
     bool shuffle;
     size_t cursor;
-    size_t* indices;
+    size_t *indices;
 };
 
-struct DataLoader* pico_dataloader_init(struct PicoContext* ctx, struct Dataset* dataset, size_t batch_size,
-                                        bool shuffle);
-struct DataBatch* pico_dataloader_next(struct DataLoader* loader);
-void pico_dataloader_reset(struct DataLoader* loader);
+struct DataLoader *pico_dataloader_init(
+    struct PicoContext *ctx, struct Dataset *dataset, size_t batch_size, bool shuffle);
+struct DataBatch *pico_dataloader_next(struct DataLoader *loader);
+void pico_dataloader_reset(struct DataLoader *loader);

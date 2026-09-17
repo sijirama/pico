@@ -1,0 +1,22 @@
+CompileFlags:
+  Add:
+    - -Isrc
+    - -Isrc/kernels/intel/matmul
+
+---
+If:
+  PathMatch: .*\.c
+CompileFlags:
+  Add: [-std=c11]
+
+---
+If:
+  PathMatch: .*\.cpp
+CompileFlags:
+  Add:
+    - -std=c++17
+    - -fsycl
+    - -I/opt/intel/oneapi/compiler/2026.1/include
+    - -I/opt/intel/oneapi/compiler/2026.1/include/sycl
+    - -I/opt/intel/oneapi/compiler/2026.1/include/sycl/stl_wrappers
+    - -resource-dir=/opt/intel/oneapi/compiler/2026.1/lib/clang/22

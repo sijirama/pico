@@ -10,7 +10,7 @@
 #include "ctx.h"
 #include "tensor.h"
 
-void pico_transpose_2d(struct PicoTensor* tensor) {
+void pico_transpose_2d(struct PicoTensor *tensor) {
     if(tensor->ndim != 2) {
         fprintf(stderr, "Error: This is not a rank 2 tensor!\n");
         return;
@@ -26,25 +26,29 @@ void pico_transpose_2d(struct PicoTensor* tensor) {
     tensor->strides[0] = sc;
 }
 
-struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struct PicoTensor* b, int dim) {
+struct PicoTensor *
+pico_cat(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int dim) {
     if(a->backend != b->backend) {
-        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
+        fprintf(
+            stderr,
+            "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
         return NULL;
     }
     if(a->ndim != b->ndim) {
-        fprintf(stderr,
-                "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch found in "
-                "ndim!\n");
+        fprintf(
+            stderr,
+            "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch found in "
+            "ndim!\n");
         return NULL;
     }
 
-    struct Arena* arena = pico_context_arena(ctx);
+    struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for cat allocation\n");
         return NULL;
     }
 
-    int64_t* res_shape = arena_alloc(arena, sizeof(int64_t) * a->ndim);
+    int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * a->ndim);
 
     // dim=0 means stack them over each other dim=1 means side by side
     for(int i = 0; i < a->ndim; i++) {
@@ -53,19 +57,20 @@ struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struc
             continue;
         }
         if(a->shape[i] != b->shape[i]) {
-            fprintf(stderr,
-                    "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch "
-                    "found in shape!\n");
+            fprintf(
+                stderr,
+                "[Pico] Error: PicoTensors are not compatible for contatenation, Mismatch "
+                "found in shape!\n");
             return NULL;
         }
         res_shape[i] = a->shape[i];
     }
 
-    struct PicoTensor* out = pico_create_tensor(ctx, res_shape, a->ndim);
+    struct PicoTensor *out = pico_create_tensor(ctx, res_shape, a->ndim);
 
-    float* src_a = (float*)a->data;
-    float* src_b = (float*)b->data;
-    float* dst = (float*)out->data;
+    float *src_a = (float *)a->data;
+    float *src_b = (float *)b->data;
+    float *dst = (float *)out->data;
 
     int64_t outer_count = 1;
     for(int i = 0; i < dim; i++) {
@@ -95,12 +100,12 @@ struct PicoTensor* pico_cat(struct PicoContext* ctx, struct PicoTensor* a, struc
     return out;
 }
 
-struct PicoTensor* pico_clone(struct PicoContext* ctx, struct PicoTensor* tensor) {
-    struct PicoTensor* t = pico_tensor_from_data(ctx, tensor->shape, tensor->ndim, tensor->data);
+struct PicoTensor *pico_clone(struct PicoContext *ctx, struct PicoTensor *tensor) {
+    struct PicoTensor *t = pico_tensor_from_data(ctx, tensor->shape, tensor->ndim, tensor->data);
     return t;
 }
 
-void pico_view(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* shape, int ndim) {
+void pico_view(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *shape, int ndim) {
     if(tensor->storage != PICO_TENSOR_STORAGE_ARENA) {
         fprintf(stderr, "view only supports arena tensors for now\n");
         return;
@@ -112,12 +117,12 @@ void pico_view(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* shap
         return;
     }
 
-    int64_t* newShape = (int64_t*)arena_alloc(ctx->arena, (ndim * sizeof(int64_t)));
+    int64_t *newShape = (int64_t *)arena_alloc(ctx->arena, (ndim * sizeof(int64_t)));
     if(newShape == NULL) {
         return;
     }
 
-    int64_t* newStrides = (int64_t*)arena_alloc(ctx->arena, ndim * sizeof(int64_t));
+    int64_t *newStrides = (int64_t *)arena_alloc(ctx->arena, ndim * sizeof(int64_t));
     if(newStrides == NULL) {
         return;
     }
@@ -132,7 +137,7 @@ void pico_view(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* shap
 // NOTE: written by codex
 // TODO: come back to this later siji
 
-void pico_permute(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* axes) {
+void pico_permute(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *axes) {
     if(ctx == NULL || tensor == NULL || axes == NULL) {
         return;
     }
@@ -142,7 +147,7 @@ void pico_permute(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* a
         return;
     }
 
-    struct Arena* arena = pico_context_arena(ctx);
+    struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for permute allocation\n");
         return;
@@ -158,14 +163,14 @@ void pico_permute(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* a
     }
 
     int ndim = tensor->ndim;
-    int64_t* newShape = (int64_t*)arena_alloc(arena, ndim * sizeof(int64_t));
-    int64_t* newStrides = (int64_t*)arena_alloc(arena, ndim * sizeof(int64_t));
-    int64_t* oldLogicalStrides = (int64_t*)arena_alloc(arena, ndim * sizeof(int64_t));
-    int64_t* oldCoords = (int64_t*)arena_alloc(arena, ndim * sizeof(int64_t));
-    int64_t* newCoords = (int64_t*)arena_alloc(arena, ndim * sizeof(int64_t));
-    float* newData = (float*)arena_alloc(arena, tensor->numel * sizeof(float));
-    if(newShape == NULL || newStrides == NULL || oldLogicalStrides == NULL || oldCoords == NULL || newCoords == NULL ||
-       newData == NULL) {
+    int64_t *newShape = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    int64_t *newStrides = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    int64_t *oldLogicalStrides = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    int64_t *oldCoords = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    int64_t *newCoords = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    float *newData = (float *)arena_alloc(arena, tensor->numel * sizeof(float));
+    if(newShape == NULL || newStrides == NULL || oldLogicalStrides == NULL || oldCoords == NULL ||
+       newCoords == NULL || newData == NULL) {
         return;
     }
 
@@ -201,7 +206,7 @@ void pico_permute(struct PicoContext* ctx, struct PicoTensor* tensor, int64_t* a
     tensor->data = newData;
 }
 
-struct PicoTensor* pico_softmax(struct PicoContext* ctx, struct PicoTensor* tensor, uint8_t dim) {
+struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tensor, uint8_t dim) {
     if(ctx == NULL || tensor == NULL) {
         return NULL;
     }
@@ -211,7 +216,7 @@ struct PicoTensor* pico_softmax(struct PicoContext* ctx, struct PicoTensor* tens
         return NULL;
     }
 
-    struct PicoTensor* out = pico_create_tensor(ctx, tensor->shape, tensor->ndim);
+    struct PicoTensor *out = pico_create_tensor(ctx, tensor->shape, tensor->ndim);
     if(out == NULL) {
         return NULL;
     }

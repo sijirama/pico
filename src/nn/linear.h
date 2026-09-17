@@ -1,7 +1,7 @@
 
 #include <stdbool.h>
 
-#include "tensor.h"
+#include "../tensor.h"
 
 struct PicoContext;
 

@@ -2,7 +2,7 @@
 #include <immintrin.h>
 #include <math.h>
 #include <stdbool.h>
-#include "tensor.h"
+#include "../../tensor.h"
 
 // AVX_2  element-wise add with broadcasting.
 // AVX2 (Advanced Vector Extensions 2) is a SIMD (Single Instruction, Multiple Data) instruction set

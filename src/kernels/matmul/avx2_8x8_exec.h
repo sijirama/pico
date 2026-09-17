@@ -1,7 +1,7 @@
 #pragma once
 
-#include "kernels/matmul/avx2_8x8.h"
-#include "tensor.h"
+#include "avx2_8x8.h"
+#include "../../tensor.h"
 
 #ifndef MATMUL_OPENMP_MIN_FLOPS
 #define MATMUL_OPENMP_MIN_FLOPS 16000000LL
