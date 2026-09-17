@@ -1,3 +1,3 @@
 #pragma once
 
-#include "kernels/matmul/cpu_avx.h"
+#include "matmul/cpu_avx.h"

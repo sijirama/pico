@@ -17,7 +17,7 @@
 #include <time.h>
 
 #include "global.h"
-#include "kernels/cpu_kernels.h"  // scalar + AVX microkernels (all static inline)
+#include "kernels/cpu/cpu_kernels.h"  // scalar + AVX microkernels (all static inline)
 #include "tensor.h"
 
 static inline double bench_now_sec(void) {

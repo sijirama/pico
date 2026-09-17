@@ -1,7 +1,7 @@
 #pragma once
 
 #include "avx2_6x16.h"
-#include "../../tensor.h"
+#include "../../../tensor.h"
 
 #ifndef MATMUL_OPENMP_MIN_FLOPS
 #define MATMUL_OPENMP_MIN_FLOPS 16000000LL

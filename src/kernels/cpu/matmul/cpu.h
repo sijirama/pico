@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../global.h"
+#include "../../../global.h"
 #include "scalar.h"
 #include "cpu_avx.h"
-#include "../../tensor.h"
+#include "../../../tensor.h"
 
 static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
     switch(g_simd_level) {

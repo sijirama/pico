@@ -2,7 +2,7 @@
 
 #include "avx2_16x_exec.h"
 #include "avx2_8x8_exec.h"
-#include "../../tensor.h"
+#include "../../../tensor.h"
 
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_exec(
     struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int row_start, int row_end, int columns,

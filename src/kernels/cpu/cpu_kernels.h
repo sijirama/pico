@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../global.h"
-#include "cpu/cpu_avx_2.h"
-#include "cpu/cpu_scalar.h"
+#include "../../global.h"
+#include "cpu_avx_2.h"
+#include "cpu_scalar.h"
 #include "matmul/cpu.h"
-#include "../tensor.h"
+#include "../../tensor.h"
 
 // CPU dispatch: pick the kernel variant for the detected SIMD level.
 // g_simd_level is set once by pico_init(); default falls back to scalar so an

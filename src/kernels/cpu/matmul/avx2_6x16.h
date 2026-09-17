@@ -2,7 +2,7 @@
 
 #include <immintrin.h>
 
-#include "../../tensor.h"
+#include "../../../tensor.h"
 
 __attribute__((target("avx2,fma"), always_inline)) static inline void pico_matmul_cpu_avx_kernel_6_16(
     struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int k_start, int k_end, int i, int j) {

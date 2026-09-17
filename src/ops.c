@@ -6,7 +6,7 @@
 #include "arena.h"
 #include "autograd.h"
 #include "ctx.h"
-#include "kernels/cpu_kernels.h"
+#include "kernels/cpu/cpu_kernels.h"
 #include "tensor.h"
 
 struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {

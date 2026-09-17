@@ -12,7 +12,7 @@
 #include "global.h"
 #include "ctx.h"
 #include "global.h"
-#include "kernels/cpu_kernels.h"
+#include "kernels/cpu/cpu_kernels.h"
 #include "tensor.h"
 
 #define WARMUP 1
