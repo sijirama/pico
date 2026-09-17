@@ -9,7 +9,7 @@ AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 BreakBeforeBraces: Attach
-ColumnLimit: 100
+ColumnLimit: 60
 IndentCaseLabels: true
 SpaceBeforeParens: Never
 
