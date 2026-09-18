@@ -38,14 +38,12 @@ __global__ void double_buffer(
     pipeline.producer_acquire();
 
     cuda::memcpy_async(
-        block,
         &A_s[0][row][col],
         &A[thready * K + (0 * TILE_WIDTH + col)],
         sizeof(float),
         pipeline);
 
     cuda::memcpy_async(
-        block,
         &B_s[0][row][col],
         &B[(0 * TILE_WIDTH + row) * N + threadx],
         sizeof(float),
@@ -64,7 +62,6 @@ __global__ void double_buffer(
             pipeline.producer_acquire();
 
             cuda::memcpy_async(
-                block,
                 &A_s[nextStage][row][col],
                 &A[thready * K +
                    (nextPhase * TILE_WIDTH + col)],
@@ -72,7 +69,6 @@ __global__ void double_buffer(
                 pipeline);
 
             cuda::memcpy_async(
-                block,
                 &B_s[nextStage][row][col],
                 &B[(nextPhase * TILE_WIDTH + row) * N +
                    threadx],
@@ -82,16 +78,16 @@ __global__ void double_buffer(
             pipeline.producer_commit();
         }
 
-        __syncthreads();
         pipeline.consumer_wait();
+        __syncthreads();
 
         for(int k = 0; k < TILE_WIDTH; k++) {
             sum += A_s[currentStage][row][k] *
                    B_s[currentStage][k][col];
         }
 
-        pipeline.consumer_release();
         __syncthreads();
+        pipeline.consumer_release();
     }
 
     C[thready * N + threadx] = sum;
