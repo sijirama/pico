@@ -99,32 +99,148 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];  // A (M,K)
     struct PicoTensor* b = self->parents[1];  // B (K,N)
 
-    int M = a->shape[0];
-    int K = a->shape[1];
-    int N = b->shape[1];
+    if(a->ndim == 2 && b->ndim == 2 && self->ndim == 2) {
+        int M = a->shape[0];
+        int K = a->shape[1];
+        int N = b->shape[1];
 
-    // dA[i][k] = Σ_j dC[i][j] * B[k][j]
-    for(int i = 0; i < M; i++) {
-        for(int k = 0; k < K; k++) {
-            float acc = 0.0f;
-            for(int j = 0; j < N; j++) {
-                acc += self->grad[i * self->strides[0] + j * self->strides[1]] *
-                       b->data[k * b->strides[0] + j * b->strides[1]];
+        // dA[i][k] = Σ_j dC[i][j] * B[k][j]
+        for(int i = 0; i < M; i++) {
+            for(int k = 0; k < K; k++) {
+                float acc = 0.0f;
+                for(int j = 0; j < N; j++) {
+                    acc += self->grad[i * self->strides[0] + j * self->strides[1]] *
+                           b->data[k * b->strides[0] + j * b->strides[1]];
+                }
+                a->grad[i * a->strides[0] + k * a->strides[1]] +=
+                    acc;  // += : accumulate across consumers
             }
-            a->grad[i * a->strides[0] + k * a->strides[1]] +=
-                acc;  // += : accumulate across consumers
         }
+
+        // dB[k][j] = Σ_i A[i][k] * dC[i][j]
+        for(int k = 0; k < K; k++) {
+            for(int j = 0; j < N; j++) {
+                float acc = 0.0f;
+                for(int i = 0; i < M; i++) {
+                    acc += a->data[i * a->strides[0] + k * a->strides[1]] *
+                           self->grad[i * self->strides[0] + j * self->strides[1]];
+                }
+                b->grad[k * b->strides[0] + j * b->strides[1]] += acc;
+            }
+        }
+        return;
     }
 
-    // dB[k][j] = Σ_i A[i][k] * dC[i][j]
-    for(int k = 0; k < K; k++) {
-        for(int j = 0; j < N; j++) {
-            float acc = 0.0f;
+    if(a->ndim == 3 && b->ndim == 2 && self->ndim == 3) {
+        int B = a->shape[0];
+        int M = a->shape[1];
+        int K = a->shape[2];
+        int N = b->shape[1];
+
+        for(int batch = 0; batch < B; batch++) {
             for(int i = 0; i < M; i++) {
-                acc += a->data[i * a->strides[0] + k * a->strides[1]] *
-                       self->grad[i * self->strides[0] + j * self->strides[1]];
+                for(int k = 0; k < K; k++) {
+                    float acc = 0.0f;
+                    for(int j = 0; j < N; j++) {
+                        acc += self->grad[batch * self->strides[0] + i * self->strides[1] +
+                                          j * self->strides[2]] *
+                               b->data[k * b->strides[0] + j * b->strides[1]];
+                    }
+                    a->grad[batch * a->strides[0] + i * a->strides[1] + k * a->strides[2]] += acc;
+                }
             }
-            b->grad[k * b->strides[0] + j * b->strides[1]] += acc;
+        }
+
+        for(int k = 0; k < K; k++) {
+            for(int j = 0; j < N; j++) {
+                float acc = 0.0f;
+                for(int batch = 0; batch < B; batch++) {
+                    for(int i = 0; i < M; i++) {
+                        acc += a->data[batch * a->strides[0] + i * a->strides[1] +
+                                       k * a->strides[2]] *
+                               self->grad[batch * self->strides[0] + i * self->strides[1] +
+                                          j * self->strides[2]];
+                    }
+                }
+                b->grad[k * b->strides[0] + j * b->strides[1]] += acc;
+            }
+        }
+        return;
+    }
+
+    if(a->ndim == 3 && b->ndim == 3 && self->ndim == 3) {
+        int B = a->shape[0];
+        int M = a->shape[1];
+        int K = a->shape[2];
+        int N = b->shape[2];
+
+        for(int batch = 0; batch < B; batch++) {
+            for(int i = 0; i < M; i++) {
+                for(int k = 0; k < K; k++) {
+                    float acc = 0.0f;
+                    for(int j = 0; j < N; j++) {
+                        acc += self->grad[batch * self->strides[0] + i * self->strides[1] +
+                                          j * self->strides[2]] *
+                               b->data[batch * b->strides[0] + k * b->strides[1] +
+                                       j * b->strides[2]];
+                    }
+                    a->grad[batch * a->strides[0] + i * a->strides[1] + k * a->strides[2]] += acc;
+                }
+            }
+
+            for(int k = 0; k < K; k++) {
+                for(int j = 0; j < N; j++) {
+                    float acc = 0.0f;
+                    for(int i = 0; i < M; i++) {
+                        acc += a->data[batch * a->strides[0] + i * a->strides[1] +
+                                       k * a->strides[2]] *
+                               self->grad[batch * self->strides[0] + i * self->strides[1] +
+                                          j * self->strides[2]];
+                    }
+                    b->grad[batch * b->strides[0] + k * b->strides[1] + j * b->strides[2]] += acc;
+                }
+            }
+        }
+        return;
+    }
+
+    if(a->ndim == 4 && b->ndim == 4 && self->ndim == 4) {
+        int B = a->shape[0];
+        int H = a->shape[1];
+        int M = a->shape[2];
+        int K = a->shape[3];
+        int N = b->shape[3];
+
+        for(int batch = 0; batch < B; batch++) {
+            for(int head = 0; head < H; head++) {
+                for(int i = 0; i < M; i++) {
+                    for(int k = 0; k < K; k++) {
+                        float acc = 0.0f;
+                        for(int j = 0; j < N; j++) {
+                            acc += self->grad[batch * self->strides[0] + head * self->strides[1] +
+                                              i * self->strides[2] + j * self->strides[3]] *
+                                   b->data[batch * b->strides[0] + head * b->strides[1] +
+                                           k * b->strides[2] + j * b->strides[3]];
+                        }
+                        a->grad[batch * a->strides[0] + head * a->strides[1] + i * a->strides[2] +
+                                k * a->strides[3]] += acc;
+                    }
+                }
+
+                for(int k = 0; k < K; k++) {
+                    for(int j = 0; j < N; j++) {
+                        float acc = 0.0f;
+                        for(int i = 0; i < M; i++) {
+                            acc += a->data[batch * a->strides[0] + head * a->strides[1] +
+                                           i * a->strides[2] + k * a->strides[3]] *
+                                   self->grad[batch * self->strides[0] + head * self->strides[1] +
+                                              i * self->strides[2] + j * self->strides[3]];
+                        }
+                        b->grad[batch * b->strides[0] + head * b->strides[1] + k * b->strides[2] +
+                                j * b->strides[3]] += acc;
+                    }
+                }
+            }
         }
     }
 }

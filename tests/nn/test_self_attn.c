@@ -309,6 +309,25 @@ UTEST(self_attn, rope_rotates_qk_pairs_by_position) {
     pico_shutdown(ctx);
 }
 
+UTEST(self_attn, rope_rotates_4d_batched_qk_layout) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {1, 2, 1, 2};
+    float values[] = {
+        1.0f, 0.0f,
+        1.0f, 0.0f,
+    };
+
+    struct PicoTensor* q = pico_tensor_from_data(ctx, shape, 4, values);
+    pico_nn_attn_apply_rope(q, 1, 2);
+
+    ASSERT_NEAR_FLOAT(q->data[0], 1.0f);
+    ASSERT_NEAR_FLOAT(q->data[1], 0.0f);
+    ASSERT_NEAR_FLOAT(q->data[2], cosf(1.0f));
+    ASSERT_NEAR_FLOAT(q->data[3], sinf(1.0f));
+
+    pico_shutdown(ctx);
+}
+
 UTEST(self_attn, forward_smoke_returns_embed_dim_for_square_2d_input) {
     struct PicoContext* ctx = pico_init_verbose(false);
     struct PicoAttn* attn = pico_nn_attn_init(ctx, "tiny.attn", 2, 1, 2);
@@ -369,6 +388,70 @@ UTEST(self_attn, causal_mask_sets_future_scores_to_negative_infinity) {
     ASSERT_NEAR_FLOAT(actual[8], 8.0f);
 }
 
+UTEST(self_attn, causal_mask_supports_head_sequence_scores_without_batch_dim) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2, 2, 2};
+    float values[] = {
+        0.0f, 1.0f,
+        2.0f, 3.0f,
+        4.0f, 5.0f,
+        6.0f, 7.0f,
+    };
+
+    struct PicoTensor* scores = pico_tensor_from_data(ctx, shape, 3, values);
+    pico_nn_attn_causal_mask(scores);
+
+    float actual[8];
+    for(int i = 0; i < 8; i++) {
+        actual[i] = scores->data[i];
+    }
+
+    pico_shutdown(ctx);
+
+    ASSERT_NEAR_FLOAT(actual[0], 0.0f);
+    ASSERT_TRUE(isinf(actual[1]) && actual[1] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[2], 2.0f);
+    ASSERT_NEAR_FLOAT(actual[3], 3.0f);
+    ASSERT_NEAR_FLOAT(actual[4], 4.0f);
+    ASSERT_TRUE(isinf(actual[5]) && actual[5] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[6], 6.0f);
+    ASSERT_NEAR_FLOAT(actual[7], 7.0f);
+}
+
+UTEST(self_attn, causal_mask_applies_independently_per_batch_and_head) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2, 2, 2, 2};
+    float values[] = {
+        0.0f, 1.0f,
+        2.0f, 3.0f,
+        4.0f, 5.0f,
+        6.0f, 7.0f,
+        8.0f, 9.0f,
+        10.0f, 11.0f,
+        12.0f, 13.0f,
+        14.0f, 15.0f,
+    };
+
+    struct PicoTensor* scores = pico_tensor_from_data(ctx, shape, 4, values);
+    pico_nn_attn_causal_mask(scores);
+
+    float actual[16];
+    for(int i = 0; i < 16; i++) {
+        actual[i] = scores->data[i];
+    }
+
+    pico_shutdown(ctx);
+
+    ASSERT_NEAR_FLOAT(actual[0], 0.0f);
+    ASSERT_TRUE(isinf(actual[1]) && actual[1] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[4], 4.0f);
+    ASSERT_TRUE(isinf(actual[5]) && actual[5] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[8], 8.0f);
+    ASSERT_TRUE(isinf(actual[9]) && actual[9] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[12], 12.0f);
+    ASSERT_TRUE(isinf(actual[13]) && actual[13] < 0.0f);
+}
+
 UTEST(self_attn, forward_matches_hand_computed_single_head_causal_attention) {
     struct PicoContext* ctx = pico_init_verbose(false);
     struct PicoAttn* attn = pico_nn_attn_init(ctx, "tiny.attn", 2, 1, 2);
@@ -412,12 +495,150 @@ UTEST(self_attn, forward_matches_hand_computed_single_head_causal_attention) {
     ASSERT_NEAR_FLOAT(actual[3], w11);
 }
 
+UTEST(self_attn, forward_3d_single_batch_matches_hand_computed_causal_attention) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_attn_init(ctx, "batched.attn", 2, 1, 2);
+    int64_t input_shape[] = {1, 2, 2};
+    float input_values[] = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+    };
+    float actual[4] = {0};
+    bool ok = false;
+
+    if(attn != NULL) {
+        fill_identity(attn->Q);
+        fill_identity(attn->K);
+        fill_identity(attn->V);
+        fill_identity(attn->O);
+
+        struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 3, input_values);
+        struct PicoTensor* out = pico_nn_attn_forward(ctx, attn, input);
+        ok = out != NULL && out->ndim == 3 && out->shape[0] == 1 && out->shape[1] == 2 &&
+             out->shape[2] == 2;
+        if(ok) {
+            for(int i = 0; i < 4; i++) {
+                actual[i] = out->data[i];
+            }
+        }
+    }
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+
+    float score_10 = -sinf(1.0f) / sqrtf(2.0f);
+    float score_11 = 1.0f / sqrtf(2.0f);
+    float denom = expf(score_10) + expf(score_11);
+    float w10 = expf(score_10) / denom;
+    float w11 = expf(score_11) / denom;
+
+    ASSERT_TRUE(ok);
+    ASSERT_NEAR_FLOAT(actual[0], 1.0f);
+    ASSERT_NEAR_FLOAT(actual[1], 0.0f);
+    ASSERT_NEAR_FLOAT(actual[2], w10);
+    ASSERT_NEAR_FLOAT(actual[3], w11);
+}
+
+UTEST(self_attn, forward_3d_keeps_batches_independent) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_attn_init(ctx, "batch.attn", 2, 1, 2);
+    int64_t input_shape[] = {2, 2, 2};
+    float input_values[] = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+        2.0f, 0.0f,
+        0.0f, 3.0f,
+    };
+    bool ok = false;
+    float actual[8] = {0};
+
+    if(attn != NULL) {
+        fill_identity(attn->Q);
+        fill_identity(attn->K);
+        fill_identity(attn->V);
+        fill_identity(attn->O);
+
+        struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 3, input_values);
+        struct PicoTensor* out = pico_nn_attn_forward(ctx, attn, input);
+        ok = out != NULL && out->ndim == 3 && out->shape[0] == 2 && out->shape[1] == 2 &&
+             out->shape[2] == 2;
+        if(ok) {
+            for(int i = 0; i < 8; i++) {
+                actual[i] = out->data[i];
+            }
+        }
+    }
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+
+    ASSERT_TRUE(ok);
+    ASSERT_NEAR_FLOAT(actual[0], 1.0f);
+    ASSERT_NEAR_FLOAT(actual[1], 0.0f);
+    ASSERT_NEAR_FLOAT(actual[4], 2.0f);
+    ASSERT_NEAR_FLOAT(actual[5], 0.0f);
+}
+
+UTEST(self_attn, forward_allows_projection_dim_smaller_than_embed_dim) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_attn_init(ctx, "narrow.attn", 3, 1, 2);
+    int64_t input_shape[] = {2, 3};
+    float input_values[] = {
+        1.0f, 0.0f, 7.0f,
+        0.0f, 1.0f, 9.0f,
+    };
+
+    ASSERT_TRUE(attn != NULL);
+    fill_identity(attn->Q);
+    fill_identity(attn->K);
+    fill_identity(attn->V);
+    fill_identity(attn->O);
+
+    struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 2, input_values);
+    struct PicoTensor* out = pico_nn_attn_forward(ctx, attn, input);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 2);
+    ASSERT_EQ(out->shape[0], 2);
+    ASSERT_EQ(out->shape[1], 3);
+    ASSERT_NEAR_FLOAT(out->data[0], 1.0f);
+    ASSERT_NEAR_FLOAT(out->data[1], 0.0f);
+    ASSERT_NEAR_FLOAT(out->data[2], 0.0f);
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+}
+
 UTEST(self_attn, forward_accepts_real_batch_sequence_embed_input) {
     ASSERT_TRUE(child_exits_successfully(run_attention_3d_forward_child));
 }
 
 UTEST(self_attn, forward_keeps_multihead_channels_separate) {
     ASSERT_TRUE(child_exits_successfully(run_attention_multihead_forward_child));
+}
+
+UTEST(self_attn, forward_rejects_unsupported_rank_input) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_attn_init(ctx, "rank.attn", 2, 1, 2);
+    int64_t input_shape[] = {1, 1, 2, 2};
+    float input_values[] = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+    };
+
+    ASSERT_TRUE(attn != NULL);
+    fill_identity(attn->Q);
+    fill_identity(attn->K);
+    fill_identity(attn->V);
+    fill_identity(attn->O);
+
+    struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 4, input_values);
+    struct PicoTensor* out = pico_nn_attn_forward(ctx, attn, input);
+
+    ASSERT_TRUE(out == NULL);
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
 }
 
 UTEST(self_attn, backward_populates_projection_grads) {

@@ -12,6 +12,7 @@
 #include "loss/loss.h"
 #include "nn/embedding.h"
 #include "nn/linear.h"
+#include "nn/transformer.h"
 #include "ops.h"
 #include "optim/optim.h"
 #include "tensor.h"

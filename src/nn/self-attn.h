@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ctx.h"
-#include "tensor.h"
+#include "../ctx.h"
+#include "../tensor.h"
 
 struct PicoContext;
 
