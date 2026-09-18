@@ -11,6 +11,9 @@ __global__ void tiled(
     int N,
     int K) {
 
+    int thready = blockIdx.y * blockDim.y + threadIdx.y;
+    int threadx = blockIdx.x * blockDim.x + threadIdx.x;
+
     int row = threadIdx.y;
     int col = threadIdx.x;
 
@@ -22,9 +25,9 @@ __global__ void tiled(
     for(int phase = 0; phase < K / TILE_WIDTH; phase++) {
 
         A_s[row][col] =
-            A[row * K + (phase * TILE_WIDTH + col)];
+            A[thready * K + (phase * TILE_WIDTH + col)];
         B_s[row][col] =
-            B[(phase * TILE_WIDTH + row) * N + col];
+            B[(phase * TILE_WIDTH + row) * N + threadx];
 
         __syncthreads();
 
@@ -35,7 +38,7 @@ __global__ void tiled(
         __syncthreads();
     }
 
-    C[row * N + col] = sum;
+    C[thready * N + threadx] = sum;
 }
 
 void cuda_gemm_tiled(

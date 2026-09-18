@@ -17,7 +17,9 @@ __global__ void double_buffer(
 
     auto block = cg::this_thread_block();
 
-    __shared__ cuda::pipeline_shared_state<cuda::thread_scope_block, 2> shared_state;
+    __shared__ cuda::
+        pipeline_shared_state<cuda::thread_scope_block, 2>
+            shared_state;
 
     // Create the pipeline handler
     cuda::pipeline pipeline =
@@ -25,6 +27,9 @@ __global__ void double_buffer(
 
     int row = threadIdx.y;
     int col = threadIdx.x;
+
+    int thready = blockIdx.y * blockDim.y + threadIdx.y;
+    int threadx = blockIdx.x * blockDim.x + threadIdx.x;
 
     __shared__ float A_s[2][TILE_WIDTH][TILE_WIDTH];
     __shared__ float B_s[2][TILE_WIDTH][TILE_WIDTH];
@@ -35,14 +40,14 @@ __global__ void double_buffer(
     cuda::memcpy_async(
         block,
         &A_s[0][row][col],
-        &A[row * K + (0 * TILE_WIDTH + col)],
+        &A[thready * K + (0 * TILE_WIDTH + col)],
         sizeof(float),
         pipeline);
 
     cuda::memcpy_async(
         block,
         &B_s[0][row][col],
-        &B[(0 * TILE_WIDTH + row) * N + col],
+        &B[(0 * TILE_WIDTH + row) * N + threadx],
         sizeof(float),
         pipeline);
 
@@ -61,14 +66,16 @@ __global__ void double_buffer(
             cuda::memcpy_async(
                 block,
                 &A_s[nextStage][row][col],
-                &A[row * K + (nextPhase * TILE_WIDTH + col)],
+                &A[thready * K +
+                   (nextPhase * TILE_WIDTH + col)],
                 sizeof(float),
                 pipeline);
 
             cuda::memcpy_async(
                 block,
                 &B_s[nextStage][row][col],
-                &B[(nextPhase * TILE_WIDTH + row) * N + col],
+                &B[(nextPhase * TILE_WIDTH + row) * N +
+                   threadx],
                 sizeof(float),
                 pipeline);
 
@@ -87,7 +94,7 @@ __global__ void double_buffer(
         __syncthreads();
     }
 
-    C[row * N + col] = sum;
+    C[thready * N + threadx] = sum;
 }
 
 void cuda_gemm_double_buffered(
