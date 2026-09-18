@@ -1,7 +1,7 @@
 #include "gemm.cuh"
 
-#include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
+#define TILE_WIDTH 16
 
 __global__ void tiled(
     const float *A,
@@ -11,15 +11,31 @@ __global__ void tiled(
     int N,
     int K) {
 
-    int threadx = blockIdx.x * blockDim.x + threadIdx.x;
-    int thready = blockIdx.y * blockDim.y + threadIdx.y;
+    int row = threadIdx.y;
+    int col = threadIdx.x;
+
+    __shared__ float A_s[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float B_s[TILE_WIDTH][TILE_WIDTH];
 
     float sum = 0.0f;
-    for(int k = 0; k < K; k++) {
-        sum += A[threadx * K + k] * B[k * N + thready];
+
+    for(int phase = 0; phase < K / TILE_WIDTH; phase++) {
+
+        A_s[row][col] =
+            A[row * K + (phase * TILE_WIDTH + col)];
+        B_s[row][col] =
+            B[(phase * TILE_WIDTH + row) * N + col];
+
+        __syncthreads();
+
+        for(int k = 0; k < TILE_WIDTH; k++) {
+            sum += A_s[row][k] * B_s[k][col];
+        }
+
+        __syncthreads();
     }
 
-    C[threadx * N + thready] = sum;
+    C[row * N + col] = sum;
 }
 
 void cuda_gemm_tiled(

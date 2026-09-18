@@ -13,7 +13,7 @@ struct PicoVec {
 };
 
 static inline void pico_vec_init(struct PicoVec* a, size_t initialCapacity) {
-    a->data = malloc(initialCapacity * sizeof(void*));
+    a->data = (void**)malloc(initialCapacity * sizeof(void*));
     if(a->data == NULL) {
         perror("Allocation failed");
         exit(EXIT_FAILURE);
@@ -28,7 +28,7 @@ static inline void pico_vec_push(struct PicoVec* a, void* element) {
         size_t newCapacity = a->capacity * 2;
 
         // Use a temporary pointer to avoid memory loss if realloc fails
-        void** temp = realloc(a->data, newCapacity * sizeof(void*));
+        void** temp = (void**)realloc(a->data, newCapacity * sizeof(void*));
         if(temp == NULL) {
             perror("Reallocation failed");
             // Original memory is still valid, handle gracefully or exit
@@ -64,7 +64,7 @@ static inline struct PicoVec pico_vec_copy(struct PicoVec* src) {
 // INFO: shallow append. result contains the pointer values from a followed by
 // b, but it does not clone or own the actual elements.
 static inline struct PicoVec* pico_vec_append(struct PicoVec* a, struct PicoVec* b) {
-    struct PicoVec* out = malloc(sizeof(struct PicoVec));
+    struct PicoVec* out = (struct PicoVec*)malloc(sizeof(struct PicoVec));
     if(out == NULL) {
         perror("Allocation failed");
         exit(EXIT_FAILURE);

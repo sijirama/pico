@@ -1,6 +1,5 @@
 #include "gemm.cuh"
 
-#include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
 
 __global__ void naive(
