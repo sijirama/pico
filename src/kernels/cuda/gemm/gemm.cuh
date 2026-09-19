@@ -6,7 +6,8 @@ void cuda_gemm_naive(
     float *C,
     int M,
     int N,
-    int K);
+    int K,
+    int batch_count);
 
 void cuda_gemm_tiled(
     const float *A,
@@ -14,7 +15,8 @@ void cuda_gemm_tiled(
     float *C,
     int M,
     int N,
-    int K);
+    int K,
+    int batch_count);
 
 void cuda_gemm_double_buffered(
     const float *A,
@@ -22,4 +24,5 @@ void cuda_gemm_double_buffered(
     float *C,
     int M,
     int N,
-    int K);
+    int K,
+    int batch_count);
