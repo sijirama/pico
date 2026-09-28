@@ -245,6 +245,55 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
     }
 }
 
+// grouped matmul is the GQA-style batched matmul:
+// A [B,Hq,M,K] uses B [B,Hkv,K,N], where kv_head = q_head / group_size.
+// dB must accumulate across every query head that shared the same kv head.
+static inline void pico_grouped_matmul_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    struct PicoTensor* b = self->parents[1];
+    int group_size = (int)self->op_param;
+
+    int B = a->shape[0];
+    int Hq = a->shape[1];
+    int M = a->shape[2];
+    int K = a->shape[3];
+    int N = b->shape[3];
+
+    for(int batch = 0; batch < B; batch++) {
+        for(int q_head = 0; q_head < Hq; q_head++) {
+            int kv_head = q_head / group_size;
+
+            for(int i = 0; i < M; i++) {
+                for(int k = 0; k < K; k++) {
+                    float acc = 0.0f;
+                    for(int j = 0; j < N; j++) {
+                        acc += self->grad[batch * self->strides[0] + q_head * self->strides[1] +
+                                          i * self->strides[2] + j * self->strides[3]] *
+                               b->data[batch * b->strides[0] + kv_head * b->strides[1] +
+                                       k * b->strides[2] + j * b->strides[3]];
+                    }
+                    a->grad[batch * a->strides[0] + q_head * a->strides[1] + i * a->strides[2] +
+                            k * a->strides[3]] += acc;
+                }
+            }
+
+            for(int k = 0; k < K; k++) {
+                for(int j = 0; j < N; j++) {
+                    float acc = 0.0f;
+                    for(int i = 0; i < M; i++) {
+                        acc += a->data[batch * a->strides[0] + q_head * a->strides[1] +
+                                       i * a->strides[2] + k * a->strides[3]] *
+                               self->grad[batch * self->strides[0] + q_head * self->strides[1] +
+                                          i * self->strides[2] + j * self->strides[3]];
+                    }
+                    b->grad[batch * b->strides[0] + kv_head * b->strides[1] + k * b->strides[2] +
+                            j * b->strides[3]] += acc;
+                }
+            }
+        }
+    }
+}
+
 static inline void pico_sqrt_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     for(int i = 0; i < self->numel; i++) {

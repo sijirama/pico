@@ -125,14 +125,14 @@ struct PicoTensor *pico_nn_gqa_attn_forward(struct PicoContext *ctx, struct Pico
     // K^T:  (B, num_kv_heads, d_k, S)
     //
     // QK_t: (B, num_heads, S, S)
-    struct PicoTensor *QK_t = pico_matmul(ctx, Q, K);
+    struct PicoTensor *QK_t = pico_grouped_matmul(ctx, Q, K, attn->gqa_group_size);
 
     struct PicoTensor *d_k_saclar = pico_tensor_from_scalar(ctx, (1 / sqrtf(attn->d_k)));
     struct PicoTensor *QK_scaled = pico_mul(ctx, QK_t, d_k_saclar); // (B, num_heads, S, S)
     pico_nn_attn_causal_mask(QK_scaled);
     struct PicoTensor *A = pico_softmax(ctx, QK_scaled, input->ndim == 2 ? 2 : 3);
 
-    struct PicoTensor *O = pico_matmul(ctx, A, V); // (B, num_heads, S, d_k)
+    struct PicoTensor *O = pico_grouped_matmul(ctx, A, V, attn->gqa_group_size); // (B, num_heads, S, d_k)
 
     int64_t permute_dims_back[4] = {0, 2, 1, 3};
     int64_t permute_dims_back_2d[3] = {1, 0, 2};

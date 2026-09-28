@@ -10,6 +10,8 @@ struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struc
 struct PicoTensor *pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b);
 struct PicoTensor *pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b);
 struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b);
+struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b,
+                                       int group_size);
 struct PicoTensor *pico_swa_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int window);
 
 // unary operations ======================================

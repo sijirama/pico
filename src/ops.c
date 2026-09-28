@@ -228,6 +228,73 @@ struct PicoTensor *pico_swa_matmul(struct PicoContext *ctx, struct PicoTensor *a
     return pico_matmul(ctx, a, b);
 }
 
+struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b,
+                                       int group_size) {
+    if(a == NULL || b == NULL) {
+        fprintf(stderr, "[Pico] Error: grouped_matmul received NULL tensor\n");
+        return NULL;
+    }
+
+    if(group_size <= 0) {
+        fprintf(stderr, "[Pico] Error: grouped_matmul group_size must be positive\n");
+        return NULL;
+    }
+
+    if(a->ndim != 4 || b->ndim != 4) {
+        fprintf(stderr, "[Pico] Error: grouped_matmul only supports 4D tensors\n");
+        return NULL;
+    }
+
+    if(a->shape[0] != b->shape[0] || a->shape[3] != b->shape[2]) {
+        fprintf(stderr, "[Pico] Error: grouped_matmul tensors must have compatible batch and inner dims\n");
+        return NULL;
+    }
+
+    if(a->shape[1] != b->shape[1] * group_size) {
+        fprintf(stderr, "[Pico] Error: grouped_matmul requires Hq == Hkv * group_size\n");
+        return NULL;
+    }
+
+    if(!pico_require_same_backend(a, b, "grouped_matmul") ||
+       !pico_require_cpu_backend(a->backend, "grouped_matmul")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for grouped_matmul allocation\n");
+        return NULL;
+    }
+
+    int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * 4);
+    if(res_shape == NULL) {
+        return NULL;
+    }
+
+    res_shape[0] = a->shape[0];
+    res_shape[1] = a->shape[1];
+    res_shape[2] = a->shape[2];
+    res_shape[3] = b->shape[3];
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, res_shape, 4);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    if(a->backend == PICO_BACKEND_CPU) {
+        pico_grouped_matmul_cpu(a, b, out, group_size);
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
+    out->parents[0] = a;
+    out->parents[1] = b;
+    out->num_parents = 2;
+    out->op_param = group_size;
+    out->_backward = pico_grouped_matmul_backward;
+
+    return out;
+}
+
 // ---- unary element-wise math ----------------------------------------------
 // same shape as `out`, dispatch to the CPU kernel, wire the single parent so
 // the graph stays intact. unary => num_parents == 1. these are near-identical:

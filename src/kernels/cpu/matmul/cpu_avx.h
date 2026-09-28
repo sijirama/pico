@@ -148,3 +148,42 @@ __attribute__((target("avx2,fma"))) static inline void pico_matmul_cpu_avx(
         return;
     }
 }
+
+__attribute__((target("avx2,fma"))) static inline void pico_grouped_matmul_cpu_avx(
+    struct PicoTensor *a, struct PicoTensor *b, struct PicoTensor *out, int group_size) {
+    int64_t a_shape[2] = {a->shape[2], a->shape[3]};
+    int64_t b_shape[2] = {b->shape[2], b->shape[3]};
+    int64_t out_shape[2] = {out->shape[2], out->shape[3]};
+
+    int64_t a_strides[2] = {a->strides[2], a->strides[3]};
+    int64_t b_strides[2] = {b->strides[2], b->strides[3]};
+    int64_t out_strides[2] = {out->strides[2], out->strides[3]};
+
+    for(int64_t batch = 0; batch < a->shape[0]; batch++) {
+        for(int64_t q_head = 0; q_head < a->shape[1]; q_head++) {
+            int64_t kv_head = q_head / group_size;
+
+            struct PicoTensor a_view = *a;
+            struct PicoTensor b_view = *b;
+            struct PicoTensor out_view = *out;
+
+            a_view.ndim = 2;
+            b_view.ndim = 2;
+            out_view.ndim = 2;
+
+            a_view.shape = a_shape;
+            b_view.shape = b_shape;
+            out_view.shape = out_shape;
+
+            a_view.strides = a_strides;
+            b_view.strides = b_strides;
+            out_view.strides = out_strides;
+
+            a_view.data = a->data + batch * a->strides[0] + q_head * a->strides[1];
+            b_view.data = b->data + batch * b->strides[0] + kv_head * b->strides[1];
+            out_view.data = out->data + batch * out->strides[0] + q_head * out->strides[1];
+
+            pico_matmul_cpu_avx_16x(&a_view, &b_view, &out_view);
+        }
+    }
+}

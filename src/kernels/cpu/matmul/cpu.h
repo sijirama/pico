@@ -15,3 +15,15 @@ static inline void pico_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b, s
             pico_matmul_cpu_scalar(a, b, out);
     }
 }
+
+static inline void pico_grouped_matmul_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out,
+                                           int group_size) {
+    switch(g_simd_level) {
+        case SIMD_AVX2:
+        case SIMD_AVX:
+            pico_grouped_matmul_cpu_avx(a, b, out, group_size);
+            break;
+        default:
+            pico_grouped_matmul_cpu_scalar(a, b, out, group_size);
+    }
+}

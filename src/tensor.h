@@ -25,6 +25,7 @@ struct PicoTensor {
     int64_t numel;
     PicoBackend backend;
     enum PicoTensorKind kind;
+    int64_t op_param;
     uint8_t ndim;
     uint8_t num_parents;
 };
