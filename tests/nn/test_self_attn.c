@@ -308,6 +308,63 @@ UTEST(self_attn, swa_init_sets_window_and_projection_shapes) {
     pico_shutdown(ctx);
 }
 
+UTEST(self_attn, gqa_init_sets_group_size_and_projection_shapes) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    struct PicoAttn* attn = pico_nn_gqa_attn_init(ctx, "block.gqa", 8, 4, 2, 2);
+
+    ASSERT_TRUE(attn != NULL);
+    ASSERT_EQ(attn->embed_dim, 8);
+    ASSERT_EQ(attn->num_of_heads, 4);
+    ASSERT_EQ(attn->d_k, 2);
+    ASSERT_EQ(attn->gqa_group_size, 2);
+
+    ASSERT_EQ(attn->Q->shape[0], 8);
+    ASSERT_EQ(attn->Q->shape[1], 8);
+    ASSERT_EQ(attn->K->shape[0], 8);
+    ASSERT_EQ(attn->K->shape[1], 4);
+    ASSERT_EQ(attn->V->shape[0], 8);
+    ASSERT_EQ(attn->V->shape[1], 4);
+    ASSERT_EQ(attn->O->shape[0], 8);
+    ASSERT_EQ(attn->O->shape[1], 8);
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+}
+
+UTEST(self_attn, gqa_init_registers_named_params) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    struct PicoAttn* attn = pico_nn_gqa_attn_init(ctx, "tiny.gqa", 4, 4, 1, 2);
+
+    ASSERT_TRUE(attn != NULL);
+    ASSERT_EQ(ctx->params.size, (size_t)4);
+    ASSERT_STREQ(attn->Q->name, "tiny.gqa.q_proj.weight");
+    ASSERT_STREQ(attn->K->name, "tiny.gqa.k_proj.weight");
+    ASSERT_STREQ(attn->V->name, "tiny.gqa.v_proj.weight");
+    ASSERT_STREQ(attn->O->name, "tiny.gqa.out_proj.weight");
+    ASSERT_TRUE(ctx->params.data[0] == attn->Q);
+    ASSERT_TRUE(ctx->params.data[1] == attn->K);
+    ASSERT_TRUE(ctx->params.data[2] == attn->V);
+    ASSERT_TRUE(ctx->params.data[3] == attn->O);
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+}
+
+UTEST(self_attn, gqa_init_rejects_base_invalid_inputs) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    ASSERT_TRUE(pico_nn_gqa_attn_init(NULL, "gqa", 4, 4, 1, 2) == NULL);
+    ASSERT_TRUE(pico_nn_gqa_attn_init(ctx, NULL, 4, 4, 1, 2) == NULL);
+    ASSERT_TRUE(pico_nn_gqa_attn_init(ctx, "gqa", 0, 4, 1, 2) == NULL);
+    ASSERT_TRUE(pico_nn_gqa_attn_init(ctx, "gqa", 4, 0, 1, 2) == NULL);
+    ASSERT_TRUE(pico_nn_gqa_attn_init(ctx, "gqa", 4, 4, 0, 2) == NULL);
+
+    ASSERT_EQ(ctx->params.size, (size_t)0);
+    pico_shutdown(ctx);
+}
+
 UTEST(self_attn, rope_rotates_qk_pairs_by_position) {
     struct PicoContext* ctx = pico_init_verbose(false);
     int64_t shape[] = {2, 4};

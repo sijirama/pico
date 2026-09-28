@@ -9,12 +9,12 @@ struct PicoTensor;
 enum PicoMode { PICO_TRAIN, PICO_EVAL };
 
 struct PicoContext {
-    struct Arena* arena;
+    struct Arena *arena;
+    struct PicoVec params; // list of persistent tensors created through pico_param
     enum PicoMode mode;
-    struct PicoVec params;   // list of persistent tensors created through pico_param
 };
 
 struct PicoContext pico_context_init(void);
-struct Arena* pico_context_arena(struct PicoContext* ctx);
-void pico_context_register_param(struct PicoContext* ctx, struct PicoTensor* param);
-void pico_context_destroy(struct PicoContext* ctx);
+struct Arena *pico_context_arena(struct PicoContext *ctx);
+void pico_context_register_param(struct PicoContext *ctx, struct PicoTensor *param);
+void pico_context_destroy(struct PicoContext *ctx);
