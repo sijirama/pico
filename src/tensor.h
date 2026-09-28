@@ -25,7 +25,7 @@ struct PicoTensor {
     int64_t numel;
     PicoBackend backend;
     enum PicoTensorKind kind;
-    int64_t op_param;
+    int64_t op_param;  // temp metadata store for ops that need one scalar in backward
     uint8_t ndim;
     uint8_t num_parents;
 };
