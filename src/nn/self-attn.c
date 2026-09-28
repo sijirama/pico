@@ -10,8 +10,7 @@
 #include "../tensor.h"
 #include "../tensor_ops.h"
 
-struct PicoTensor *
-pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct PicoTensor *input) {
+struct PicoTensor *pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct PicoTensor *input) {
     struct PicoTensor *Q = pico_matmul(ctx, input, attn->Q); // input (B x S x E) @ Q_w (E x d_k)
     struct PicoTensor *K = pico_matmul(ctx, input, attn->K); // input (B x S x E) @ K_w (E x d_k)
     struct PicoTensor *V = pico_matmul(ctx, input, attn->V); // input (B x S x E) @ V_w (E x d_k)
@@ -96,8 +95,7 @@ pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct Pico
     return final;
 }
 
-struct PicoAttn *
-pico_nn_attn_init(struct PicoContext *ctx, char *name, int embed_dim, int num_heads, int d_k) {
+struct PicoAttn *pico_nn_attn_init(struct PicoContext *ctx, char *name, int embed_dim, int num_heads, int d_k) {
     if(ctx == NULL || name == NULL || embed_dim <= 0 || num_heads <= 0 || d_k <= 0) {
         return NULL;
     }

@@ -283,6 +283,31 @@ UTEST(self_attn, init_rejects_invalid_inputs) {
     pico_shutdown(ctx);
 }
 
+UTEST(self_attn, swa_init_sets_window_and_projection_shapes) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    struct PicoAttn* attn = pico_nn_swa_attn_init(ctx, "block.swa", 8, 2, 3, 4);
+
+    ASSERT_TRUE(attn != NULL);
+    ASSERT_EQ(attn->embed_dim, 8);
+    ASSERT_EQ(attn->num_of_heads, 2);
+    ASSERT_EQ(attn->d_k, 3);
+    ASSERT_EQ(attn->swa_window, 4);
+    ASSERT_EQ(attn->Q->shape[0], 8);
+    ASSERT_EQ(attn->Q->shape[1], 6);
+    ASSERT_EQ(attn->K->shape[0], 8);
+    ASSERT_EQ(attn->K->shape[1], 6);
+    ASSERT_EQ(attn->V->shape[0], 8);
+    ASSERT_EQ(attn->V->shape[1], 6);
+    ASSERT_EQ(attn->O->shape[0], 6);
+    ASSERT_EQ(attn->O->shape[1], 8);
+    ASSERT_STREQ(attn->Q->name, "block.swa.q_proj.weight");
+    ASSERT_STREQ(attn->O->name, "block.swa.out_proj.weight");
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+}
+
 UTEST(self_attn, rope_rotates_qk_pairs_by_position) {
     struct PicoContext* ctx = pico_init_verbose(false);
     int64_t shape[] = {2, 4};
@@ -716,6 +741,85 @@ UTEST(self_attn, forward_allows_projection_dim_smaller_than_embed_dim) {
     ASSERT_NEAR_FLOAT(out->data[0], 1.0f);
     ASSERT_NEAR_FLOAT(out->data[1], 0.0f);
     ASSERT_NEAR_FLOAT(out->data[2], 0.0f);
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+}
+
+UTEST(self_attn, swa_forward_matches_hand_computed_single_head_window_attention) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_swa_attn_init(ctx, "tiny.swa", 2, 1, 2, 1);
+    int64_t input_shape[] = {3, 2};
+    float input_values[] = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+        2.0f, 0.0f,
+    };
+    float actual[6] = {0};
+    bool ok = false;
+
+    if(attn != NULL) {
+        fill_identity(attn->Q);
+        fill_identity(attn->K);
+        fill_identity(attn->V);
+        fill_identity(attn->O);
+
+        struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 2, input_values);
+        struct PicoTensor* out = pico_nn_swa_attn_forward(ctx, attn, input);
+        ok = out != NULL && out->ndim == 2 && out->shape[0] == 3 && out->shape[1] == 2;
+        if(ok) {
+            for(int i = 0; i < 6; i++) {
+                actual[i] = out->data[i];
+            }
+        }
+    }
+
+    pico_nn_attn_free(attn);
+    pico_shutdown(ctx);
+
+    float score_21 = (2.0f * sinf(1.0f)) / sqrtf(2.0f);
+    float score_22 = 4.0f / sqrtf(2.0f);
+    float denom = expf(score_21) + expf(score_22);
+    float w21 = expf(score_21) / denom;
+    float w22 = expf(score_22) / denom;
+
+    ASSERT_TRUE(ok);
+    ASSERT_NEAR_FLOAT(actual[0], 1.0f);
+    ASSERT_NEAR_FLOAT(actual[1], 0.0f);
+    ASSERT_NEAR_FLOAT(actual[4], 2.0f * w22);
+    ASSERT_NEAR_FLOAT(actual[5], w21);
+}
+
+UTEST(self_attn, swa_forward_accepts_real_batch_sequence_embed_input) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    struct PicoAttn* attn = pico_nn_swa_attn_init(ctx, "batch.swa", 2, 1, 2, 1);
+    int64_t input_shape[] = {2, 3, 2};
+    float input_values[] = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+        2.0f, 0.0f,
+        3.0f, 0.0f,
+        0.0f, 4.0f,
+        5.0f, 0.0f,
+    };
+
+    ASSERT_TRUE(attn != NULL);
+    fill_identity(attn->Q);
+    fill_identity(attn->K);
+    fill_identity(attn->V);
+    fill_identity(attn->O);
+
+    struct PicoTensor* input = pico_tensor_from_data(ctx, input_shape, 3, input_values);
+    struct PicoTensor* out = pico_nn_swa_attn_forward(ctx, attn, input);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 3);
+    ASSERT_EQ(out->shape[0], 2);
+    ASSERT_EQ(out->shape[1], 3);
+    ASSERT_EQ(out->shape[2], 2);
+    for(int i = 0; i < out->numel; i++) {
+        ASSERT_TRUE(isfinite(out->data[i]));
+    }
 
     pico_nn_attn_free(attn);
     pico_shutdown(ctx);

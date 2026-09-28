@@ -1,11 +1,4 @@
-#include "../arena.h"
-#include "../ops.h"
-#include "../tensor.h"
-#include "../tensor_ops.h"
 #include "attn.h"
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
 
 struct PicoAttn *pico_nn_swa_attn_init(struct PicoContext *ctx, char *name, int embed_dim, int num_heads, int d_k, int window) {
     struct PicoAttn *attn = pico_nn_attn_init(ctx, name, embed_dim, num_heads, d_k);
