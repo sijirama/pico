@@ -10,23 +10,20 @@
 #include "kernels/cpu/cpu_kernels.h"
 #include "tensor.h"
 
-struct PicoTensor *
-pico_add(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
+struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
     }
 
     if(a->backend != b->backend) {
-        fprintf(
-            stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
+        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
         return NULL;
     }
 
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for add allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for add allocation\n");
         return NULL;
     }
 
@@ -57,23 +54,20 @@ pico_add(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     return out;
 }
 
-struct PicoTensor *
-pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
+struct PicoTensor *pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
     }
 
     if(a->backend != b->backend) {
-        fprintf(
-            stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
+        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
         return NULL;
     }
 
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for sub allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sub allocation\n");
         return NULL;
     }
 
@@ -104,23 +98,20 @@ pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     return out;
 }
 
-struct PicoTensor *
-pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
+struct PicoTensor *pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     if(!pico_check_broadcast_compatibility(a, b)) {
         fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
         return NULL;
     }
 
     if(a->backend != b->backend) {
-        fprintf(
-            stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
+        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
         return NULL;
     }
 
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for mul allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for mul allocation\n");
         return NULL;
     }
 
@@ -151,8 +142,7 @@ pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
     return out;
 }
 
-struct PicoTensor *pico_matmul(
-    struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
+struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
 
     bool is_2d_matmul = a->ndim == 2 && b->ndim == 2;
     bool is_3d_2d_matmul = a->ndim == 3 && b->ndim == 2;
@@ -160,9 +150,7 @@ struct PicoTensor *pico_matmul(
     bool is_4d_matmul = a->ndim == 4 && b->ndim == 4;
 
     if(!is_2d_matmul && !is_3d_2d_matmul && !is_3d_matmul && !is_4d_matmul) {
-        fprintf(
-            stderr,
-            "[Pico] Error: matmul only supports 2D, 3D@2D, 3D, or 4D tensors\n");
+        fprintf(stderr, "[Pico] Error: matmul only supports 2D, 3D@2D, 3D, or 4D tensors\n");
         return NULL;
     }
 
@@ -181,24 +169,19 @@ struct PicoTensor *pico_matmul(
         return NULL;
     }
 
-    if(is_4d_matmul &&
-       (a->shape[0] != b->shape[0] || a->shape[1] != b->shape[1] ||
-        a->shape[3] != b->shape[2])) {
+    if(is_4d_matmul && (a->shape[0] != b->shape[0] || a->shape[1] != b->shape[1] || a->shape[3] != b->shape[2])) {
         perror("[Pico] Error: 4d batched matmul tensors must be compatible");
         return NULL;
     }
 
     if(a->backend != b->backend) {
-        fprintf(
-            stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
+        fprintf(stderr, "[Pico] Error: PicoTensor backends are not compatible!\n");
         return NULL;
     }
 
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr,
-            "PicoArenaError: no arena available for matmul allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for matmul allocation\n");
         return NULL;
     }
 
@@ -243,6 +226,10 @@ struct PicoTensor *pico_matmul(
     return out;
 }
 
+struct PicoTensor *pico_swa_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int windows) {
+    return pico_matmul(ctx, a, b);
+}
+
 // ---- unary element-wise math ----------------------------------------------
 // same shape as `out`, dispatch to the CPU kernel, wire the single parent so
 // the graph stays intact. unary => num_parents == 1. these are near-identical:
@@ -251,8 +238,7 @@ struct PicoTensor *pico_matmul(
 struct PicoTensor *pico_sqrt(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for sqrt allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sqrt allocation\n");
         return NULL;
     }
 
@@ -274,8 +260,7 @@ struct PicoTensor *pico_sqrt(struct PicoContext *ctx, struct PicoTensor *a) {
 struct PicoTensor *pico_sin(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for sin allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for sin allocation\n");
         return NULL;
     }
 
@@ -297,8 +282,7 @@ struct PicoTensor *pico_sin(struct PicoContext *ctx, struct PicoTensor *a) {
 struct PicoTensor *pico_cos(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for cos allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for cos allocation\n");
         return NULL;
     }
 
@@ -320,8 +304,7 @@ struct PicoTensor *pico_cos(struct PicoContext *ctx, struct PicoTensor *a) {
 struct PicoTensor *pico_tan(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for tan allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for tan allocation\n");
         return NULL;
     }
 
@@ -343,8 +326,7 @@ struct PicoTensor *pico_tan(struct PicoContext *ctx, struct PicoTensor *a) {
 struct PicoTensor *pico_tanh(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for tanh allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for tanh allocation\n");
         return NULL;
     }
 
@@ -366,8 +348,7 @@ struct PicoTensor *pico_tanh(struct PicoContext *ctx, struct PicoTensor *a) {
 struct PicoTensor *pico_log(struct PicoContext *ctx, struct PicoTensor *a) {
     struct Arena *arena = pico_context_arena(ctx);
     if(arena == NULL) {
-        fprintf(
-            stderr, "PicoArenaError: no arena available for log allocation\n");
+        fprintf(stderr, "PicoArenaError: no arena available for log allocation\n");
         return NULL;
     }
 

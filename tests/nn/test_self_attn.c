@@ -8,13 +8,11 @@
 
 #include "global.h"
 #include "loss/loss.h"
-#include "nn/self-attn.h"
+#include "nn/attn.h"
 #include "optim/optim.h"
 #include "tensor.h"
 
 #define ASSERT_NEAR_FLOAT(actual, expected) ASSERT_NEAR((actual), (expected), 1e-5f)
-
-void pico_nn_attn_causal_mask(struct PicoTensor* table);
 
 static void fill_identity_2x2(struct PicoTensor* tensor) {
     for(int i = 0; i < tensor->numel; i++) {
@@ -450,6 +448,120 @@ UTEST(self_attn, causal_mask_applies_independently_per_batch_and_head) {
     ASSERT_TRUE(isinf(actual[9]) && actual[9] < 0.0f);
     ASSERT_NEAR_FLOAT(actual[12], 12.0f);
     ASSERT_TRUE(isinf(actual[13]) && actual[13] < 0.0f);
+}
+
+UTEST(self_attn, swa_causal_mask_keeps_only_past_tokens_inside_window_3d) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {1, 5, 5};
+    float values[] = {
+        0.0f, 1.0f, 2.0f, 3.0f, 4.0f,
+        5.0f, 6.0f, 7.0f, 8.0f, 9.0f,
+        10.0f, 11.0f, 12.0f, 13.0f, 14.0f,
+        15.0f, 16.0f, 17.0f, 18.0f, 19.0f,
+        20.0f, 21.0f, 22.0f, 23.0f, 24.0f,
+    };
+
+    struct PicoTensor* scores = pico_tensor_from_data(ctx, shape, 3, values);
+    pico_nn_attn_swa_causal_mask(scores, 2);
+
+    float actual[25];
+    for(int i = 0; i < 25; i++) {
+        actual[i] = scores->data[i];
+    }
+
+    pico_shutdown(ctx);
+
+    // q=0 can only see k=0.
+    ASSERT_NEAR_FLOAT(actual[0], 0.0f);
+    ASSERT_TRUE(isinf(actual[1]) && actual[1] < 0.0f);
+
+    // q=2 can see k=0..2 because the window is 2 steps behind.
+    ASSERT_NEAR_FLOAT(actual[10], 10.0f);
+    ASSERT_NEAR_FLOAT(actual[11], 11.0f);
+    ASSERT_NEAR_FLOAT(actual[12], 12.0f);
+    ASSERT_TRUE(isinf(actual[13]) && actual[13] < 0.0f);
+
+    // q=4 can see only k=2..4. older keys fall outside the sliding window.
+    ASSERT_TRUE(isinf(actual[20]) && actual[20] < 0.0f);
+    ASSERT_TRUE(isinf(actual[21]) && actual[21] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[22], 22.0f);
+    ASSERT_NEAR_FLOAT(actual[23], 23.0f);
+    ASSERT_NEAR_FLOAT(actual[24], 24.0f);
+}
+
+UTEST(self_attn, swa_causal_mask_applies_per_batch_and_head_4d) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2, 2, 4, 4};
+    float values[64];
+    for(int i = 0; i < 64; i++) {
+        values[i] = (float)i;
+    }
+
+    struct PicoTensor* scores = pico_tensor_from_data(ctx, shape, 4, values);
+    pico_nn_attn_swa_causal_mask(scores, 1);
+
+    float actual[64];
+    for(int i = 0; i < 64; i++) {
+        actual[i] = scores->data[i];
+    }
+
+    pico_shutdown(ctx);
+
+    // b0 h0 panel, q=2 can only see k=1 and k=2 when window=1.
+    ASSERT_TRUE(isinf(actual[8]) && actual[8] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[9], 9.0f);
+    ASSERT_NEAR_FLOAT(actual[10], 10.0f);
+    ASSERT_TRUE(isinf(actual[11]) && actual[11] < 0.0f);
+
+    // b0 h1 panel has the same mask pattern, but keeps its own values.
+    ASSERT_TRUE(isinf(actual[24]) && actual[24] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[25], 25.0f);
+    ASSERT_NEAR_FLOAT(actual[26], 26.0f);
+    ASSERT_TRUE(isinf(actual[27]) && actual[27] < 0.0f);
+
+    // b1 h1 panel too, just to make sure batch and head offsets both work.
+    ASSERT_TRUE(isinf(actual[56]) && actual[56] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[57], 57.0f);
+    ASSERT_NEAR_FLOAT(actual[58], 58.0f);
+    ASSERT_TRUE(isinf(actual[59]) && actual[59] < 0.0f);
+}
+
+UTEST(self_attn, swa_causal_mask_window_larger_than_sequence_matches_causal_mask) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {1, 4, 4};
+    float values[] = {
+        0.0f, 1.0f, 2.0f, 3.0f,
+        4.0f, 5.0f, 6.0f, 7.0f,
+        8.0f, 9.0f, 10.0f, 11.0f,
+        12.0f, 13.0f, 14.0f, 15.0f,
+    };
+
+    struct PicoTensor* scores = pico_tensor_from_data(ctx, shape, 3, values);
+    pico_nn_attn_swa_causal_mask(scores, 99);
+
+    float actual[16];
+    for(int i = 0; i < 16; i++) {
+        actual[i] = scores->data[i];
+    }
+
+    pico_shutdown(ctx);
+
+    ASSERT_NEAR_FLOAT(actual[0], 0.0f);
+    ASSERT_TRUE(isinf(actual[1]) && actual[1] < 0.0f);
+    ASSERT_TRUE(isinf(actual[2]) && actual[2] < 0.0f);
+    ASSERT_TRUE(isinf(actual[3]) && actual[3] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[4], 4.0f);
+    ASSERT_NEAR_FLOAT(actual[5], 5.0f);
+    ASSERT_TRUE(isinf(actual[6]) && actual[6] < 0.0f);
+    ASSERT_TRUE(isinf(actual[7]) && actual[7] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[8], 8.0f);
+    ASSERT_NEAR_FLOAT(actual[9], 9.0f);
+    ASSERT_NEAR_FLOAT(actual[10], 10.0f);
+    ASSERT_TRUE(isinf(actual[11]) && actual[11] < 0.0f);
+    ASSERT_NEAR_FLOAT(actual[12], 12.0f);
+    ASSERT_NEAR_FLOAT(actual[13], 13.0f);
+    ASSERT_NEAR_FLOAT(actual[14], 14.0f);
+    ASSERT_NEAR_FLOAT(actual[15], 15.0f);
 }
 
 UTEST(self_attn, forward_matches_hand_computed_single_head_causal_attention) {

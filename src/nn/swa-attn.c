@@ -1,17 +1,19 @@
-#include "attn.h"
-
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "../arena.h"
 #include "../ops.h"
 #include "../tensor.h"
 #include "../tensor_ops.h"
+#include "attn.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
 
-struct PicoTensor *
-pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct PicoTensor *input) {
+struct PicoAttn *pico_nn_swa_attn_init(struct PicoContext *ctx, char *name, int embed_dim, int num_heads, int d_k, int window) {
+    struct PicoAttn *attn = pico_nn_attn_init(ctx, name, embed_dim, num_heads, d_k);
+    attn->swa_window = window;
+    return attn;
+}
+
+struct PicoTensor *pico_nn_swa_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct PicoTensor *input) {
     struct PicoTensor *Q = pico_matmul(ctx, input, attn->Q); // input (B x S x E) @ Q_w (E x d_k)
     struct PicoTensor *K = pico_matmul(ctx, input, attn->K); // input (B x S x E) @ K_w (E x d_k)
     struct PicoTensor *V = pico_matmul(ctx, input, attn->V); // input (B x S x E) @ V_w (E x d_k)
@@ -66,11 +68,13 @@ pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct Pico
     // K^T:  (B, num_heads, d_k, S)
     //
     // QK_t: (B, num_heads, S, S)
-    struct PicoTensor *QK_t = pico_matmul(ctx, Q, K);
+    struct PicoTensor *QK_t = pico_swa_matmul(ctx, Q, K, attn->swa_window);
 
     struct PicoTensor *d_k_saclar = pico_tensor_from_scalar(ctx, (1 / sqrtf(attn->d_k)));
     struct PicoTensor *QK_scaled = pico_mul(ctx, QK_t, d_k_saclar); // (B, num_heads, S, S)
-    pico_nn_attn_causal_mask(QK_scaled);
+
+    pico_nn_attn_swa_causal_mask(QK_scaled, attn->swa_window);
+
     struct PicoTensor *A = pico_softmax(ctx, QK_scaled, input->ndim == 2 ? 2 : 3);
 
     struct PicoTensor *O = pico_matmul(ctx, A, V); // (B, num_heads, S, d_k)
@@ -94,58 +98,4 @@ pico_nn_attn_forward(struct PicoContext *ctx, struct PicoAttn *attn, struct Pico
     struct PicoTensor *final = pico_matmul(ctx, O, attn->O); // (B,S,embed_dim)
 
     return final;
-}
-
-struct PicoAttn *
-pico_nn_attn_init(struct PicoContext *ctx, char *name, int embed_dim, int num_heads, int d_k) {
-    if(ctx == NULL || name == NULL || embed_dim <= 0 || num_heads <= 0 || d_k <= 0) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(
-            stderr,
-            "PicoArenaError: no arena available for attention init "
-            "allocation\n");
-        return NULL;
-    }
-
-    struct PicoAttn *attn = malloc(sizeof(struct PicoAttn));
-    if(attn == NULL) {
-        perror("Failed to allocate PicoAttn");
-        return NULL;
-    }
-
-    attn->embed_dim = embed_dim;
-    attn->num_of_heads = num_heads;
-    attn->d_k = d_k;
-
-    int head_dim = num_heads * d_k;
-    int64_t q_shape[2] = {embed_dim, head_dim};
-    int64_t k_shape[2] = {embed_dim, head_dim};
-    int64_t v_shape[2] = {embed_dim, head_dim};
-    int64_t o_shape[2] = {head_dim, embed_dim};
-
-    char *q_name = pico_attn_param_name(arena, name, ".q_proj.weight");
-    char *k_name = pico_attn_param_name(arena, name, ".k_proj.weight");
-    char *v_name = pico_attn_param_name(arena, name, ".v_proj.weight");
-    char *o_name = pico_attn_param_name(arena, name, ".out_proj.weight");
-
-    if(q_name == NULL || k_name == NULL || v_name == NULL || o_name == NULL) {
-        free(attn);
-        return NULL;
-    }
-
-    attn->Q = pico_param_named(ctx, q_name, q_shape, 2);
-    attn->K = pico_param_named(ctx, k_name, k_shape, 2);
-    attn->V = pico_param_named(ctx, v_name, v_shape, 2);
-    attn->O = pico_param_named(ctx, o_name, o_shape, 2);
-
-    if(attn->Q == NULL || attn->K == NULL || attn->V == NULL || attn->O == NULL) {
-        free(attn);
-        return NULL;
-    }
-
-    return attn;
 }

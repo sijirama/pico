@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../tensor.h"
+#include "attn.h"
 #include "linear.h"
-#include "self-attn.h"
 
 struct PicoContext;
 
