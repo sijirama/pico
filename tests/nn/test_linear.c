@@ -128,14 +128,13 @@ UTEST(linear, forward_incompatible_returns_null) {
     pico_shutdown(ctx);
 }
 
-// params must be heap-backed so a per-step arena reset can't wipe them and the
-// optimizer can hold a stable pointer.
-UTEST(linear, weights_use_heap_storage) {
+// params must be param tensors so optimizers and serializers can find them.
+UTEST(linear, weights_use_param_kind) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoLinear* fc = pico_nn_linear_init(ctx, "fc", 3, 4, true);
-    ASSERT_EQ(fc->weights->storage, PICO_TENSOR_STORAGE_HEAP);
-    ASSERT_EQ(fc->bias->storage, PICO_TENSOR_STORAGE_HEAP);
+    ASSERT_EQ(fc->weights->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(fc->bias->kind, PICO_TENSOR_PARAM);
 
     pico_nn_linear_free(fc);
     pico_shutdown(ctx);

@@ -35,6 +35,24 @@ UTEST(Basic, init_shutdown_and_explicit_context_ops) {
     ASSERT_FALSE(g_pico_initialized);
 }
 
+UTEST(Basic, cpu_ops_reject_unsupported_cuda_backend) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[1] = {2};
+    struct PicoTensor* a = pico_tensor_from_data(ctx, shape, 1, (float[]){1.0f, 2.0f});
+    struct PicoTensor* b = pico_tensor_from_data(ctx, shape, 1, (float[]){3.0f, 4.0f});
+    ASSERT_TRUE(a != NULL);
+    ASSERT_TRUE(b != NULL);
+
+    b->backend = PICO_BACKEND_CUDA;
+    ASSERT_TRUE(pico_add(ctx, a, b) == NULL);
+
+    a->backend = PICO_BACKEND_CUDA;
+    ASSERT_TRUE(pico_add(ctx, a, b) == NULL);
+
+    pico_shutdown(ctx);
+}
+
 UTEST_STATE();
 
 int main(int argc, const char* const argv[]) {

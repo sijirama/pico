@@ -33,7 +33,7 @@ UTEST(embedding, table_is_trainable_param) {
 
     ASSERT_TRUE(embedding != NULL);
     ASSERT_TRUE(embedding->table != NULL);
-    ASSERT_EQ(embedding->table->storage, PICO_TENSOR_STORAGE_HEAP);
+    ASSERT_EQ(embedding->table->kind, PICO_TENSOR_PARAM);
     ASSERT_EQ(ctx->params.size, (size_t)1);
 
     pico_shutdown(ctx);

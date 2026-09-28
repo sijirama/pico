@@ -22,14 +22,30 @@ UTEST(pico_param, returns_non_null) {
     pico_shutdown(ctx);
 }
 
-// ndim and storage kind should be set correctly
+// ndim and tensor kind should be set correctly
 UTEST(pico_param, metadata) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
     int64_t shape[] = {2, 3};
     struct PicoTensor* t = pico_param(ctx, shape, 2);
     ASSERT_EQ(t->ndim, 2);
-    ASSERT_EQ(t->storage, PICO_TENSOR_STORAGE_HEAP);
+    ASSERT_EQ(t->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(t->backend, PICO_BACKEND_CPU);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(pico_param, cuda_backend_marks_param_without_cpu_payload) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    struct PicoTensor* t = pico_param_on(ctx, PICO_BACKEND_CUDA, shape, 2);
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(t->backend, PICO_BACKEND_CUDA);
+    ASSERT_TRUE(t->data == NULL);
+    ASSERT_TRUE(t->grad == NULL);
+    ASSERT_EQ(ctx->params.size, (size_t)1);
 
     pico_shutdown(ctx);
 }
@@ -198,6 +214,8 @@ UTEST(pico_tensor_from_scalar, holds_value) {
     struct PicoTensor* s = pico_tensor_from_scalar(ctx, 3.5f);
     ASSERT_TRUE(s != NULL);
     ASSERT_EQ(s->ndim, 1);
+    ASSERT_EQ(s->kind, PICO_TENSOR_TEMP);
+    ASSERT_EQ(s->backend, PICO_BACKEND_CPU);
     ASSERT_EQ(s->numel, 1);
     ASSERT_TRUE(s->data[0] == 3.5f);
 
@@ -269,6 +287,54 @@ UTEST(pico_tensor_from_data, rejects_null_data) {
     int64_t shape[] = {3};
     struct PicoTensor* t = pico_tensor_from_data(ctx, shape, 1, NULL);
     ASSERT_TRUE(t == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(pico_tensor_from_scalar, can_fake_transfer_to_cuda) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    struct PicoTensor* t = pico_tensor_from_scalar_on(ctx, PICO_BACKEND_CUDA, 4.0f);
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->backend, PICO_BACKEND_CUDA);
+    ASSERT_TRUE(t->data != NULL);
+    ASSERT_TRUE(t->data[0] == 4.0f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(pico_tensor_from_data, can_fake_transfer_to_cuda) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {3};
+    float data[] = {1.0f, 2.0f, 3.0f};
+    struct PicoTensor* t = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, data);
+    ASSERT_TRUE(t != NULL);
+    ASSERT_EQ(t->backend, PICO_BACKEND_CUDA);
+    ASSERT_TRUE(t->data != NULL);
+    ASSERT_TRUE(t->data[0] == 1.0f);
+    ASSERT_TRUE(t->data[2] == 3.0f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(pico_tensor_transfer, cuda_to_cpu_allocates_cpu_data_and_preserves_values) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {3};
+    float data[] = {1.0f, 2.0f, 3.0f};
+    struct PicoTensor* t = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, data);
+    ASSERT_TRUE(t != NULL);
+
+    float* fake_cuda_data = t->data;
+    ASSERT_TRUE(pico_tensor_to_backend(ctx, t, PICO_BACKEND_CPU));
+    ASSERT_EQ(t->backend, PICO_BACKEND_CPU);
+    ASSERT_TRUE(t->data != NULL);
+    ASSERT_TRUE(t->grad != NULL);
+    ASSERT_TRUE(t->data != fake_cuda_data);
+    ASSERT_TRUE(t->data[0] == 1.0f);
+    ASSERT_TRUE(t->data[1] == 2.0f);
+    ASSERT_TRUE(t->data[2] == 3.0f);
 
     pico_shutdown(ctx);
 }

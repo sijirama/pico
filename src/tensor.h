@@ -5,15 +5,15 @@
 #include <stdbool.h>
 #include "arena.h"
 #include "ctx.h"
+#include "devices/backend.h"
 
 #define PI_F 3.14159265358979323846f  // M_PI isn't exposed under -std=c11
-typedef enum { CPU, GPU } PicoBackend;
 
-enum PicoTensorStorage { PICO_TENSOR_STORAGE_ARENA, PICO_TENSOR_STORAGE_HEAP };
+enum PicoTensorKind { PICO_TENSOR_TEMP, PICO_TENSOR_PARAM };
 
-// INFO: PicoTensor is only the view/metadata plus pointers to storage. params
-// use heap storage and ctx owns them. temp tensors use arena storage and die
-// when the ctx arena is reset or destroyed.
+// INFO: kind decides lifetime, backend decides where data lives.
+// temp tensors go in ctx->temp_arena. params go in ctx->param_arena and are
+// registered in ctx->params so optimizers and serializers can find them.
 struct PicoTensor {
     char * name;
     int64_t* shape;
@@ -24,32 +24,34 @@ struct PicoTensor {
     struct PicoTensor** parents;
     int64_t numel;
     PicoBackend backend;
-    enum PicoTensorStorage storage;
+    enum PicoTensorKind kind;
     uint8_t ndim;
     uint8_t num_parents;
 };
 
 void pico_backward(struct PicoContext* ctx, struct PicoTensor* entry);
 
-// INFO: params are ctx-owned heap tensors. they survive arena resets.
+// INFO: params are ctx-owned trainable tensors. they live in param_arena.
 struct PicoTensor* pico_param(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
 struct PicoTensor* pico_param_named(struct PicoContext* ctx, char * name , int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_param_on(struct PicoContext* ctx, PicoBackend backend, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_param_named_on(struct PicoContext* ctx, PicoBackend backend, char* name, int64_t* shape,
+                                       uint8_t ndim);
 
-// INFO: create_tensor is the temp constructor. ops use this for graph outputs,
-// so the result is owned by the arena and pico_free intentionally ignores it.
+// INFO: create_tensor is the temp constructor. ops use this for graph outputs.
 struct PicoTensor* pico_create_tensor(struct PicoContext* ctx, int64_t* shape, uint8_t ndim);
+struct PicoTensor* pico_create_tensor_on(struct PicoContext* ctx, PicoBackend backend, int64_t* shape, uint8_t ndim);
 
 // a 1-element tensor (shape {1}) holding a single scalar. broadcasts against any
 // shape, so you can do pico_mul(ctx, pico_tensor_from_scalar(ctx, 2.0f), t).
 struct PicoTensor* pico_tensor_from_scalar(struct PicoContext* ctx, float value);
+struct PicoTensor* pico_tensor_from_scalar_on(struct PicoContext* ctx, PicoBackend backend, float value);
 
 // INFO: copies data into a new arena tensor. it does not borrow `data`, so stack
 // arrays and short-lived buffers are safe to pass here.
 struct PicoTensor* pico_tensor_from_data(struct PicoContext* ctx, int64_t* shape, uint8_t ndim, const float* data);
-
-// INFO: internal cleanup helper used by PicoContext. user code should destroy
-// the owning context instead of freeing tensors one by one.
-void pico_tensor_free_heap(struct PicoTensor* tensor);
+struct PicoTensor* pico_tensor_from_data_on(struct PicoContext* ctx, PicoBackend backend, int64_t* shape,
+                                            uint8_t ndim, const float* data);
 
 // pretty-print a tensor's shape + data, nested by shape (respects strides).
 void pico_tensor_print(struct PicoTensor* t);

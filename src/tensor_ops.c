@@ -16,6 +16,10 @@ void pico_transpose_2d(struct PicoTensor *tensor) {
         return;
     }
 
+    if(!pico_require_cpu_backend(tensor->backend, "transpose")) {
+        return;
+    }
+
     // swap rows/cols in metadata only. the underlying data buffer is unchanged.
     int c = tensor->shape[1];
     tensor->shape[1] = tensor->shape[0];
@@ -28,10 +32,10 @@ void pico_transpose_2d(struct PicoTensor *tensor) {
 
 struct PicoTensor *
 pico_cat(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int dim) {
-    if(a->backend != b->backend) {
-        fprintf(
-            stderr,
-            "[Pico] Error: PicoTensor backends are not compatible, Mismatch found in backends!\n");
+    if(!pico_require_same_backend(a, b, "cat")) {
+        return NULL;
+    }
+    if(!pico_require_cpu_backend(a->backend, "cat")) {
         return NULL;
     }
     if(a->ndim != b->ndim) {
@@ -66,7 +70,7 @@ pico_cat(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, in
         res_shape[i] = a->shape[i];
     }
 
-    struct PicoTensor *out = pico_create_tensor(ctx, res_shape, a->ndim);
+    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, res_shape, a->ndim);
 
     float *src_a = (float *)a->data;
     float *src_b = (float *)b->data;
@@ -101,13 +105,21 @@ pico_cat(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, in
 }
 
 struct PicoTensor *pico_clone(struct PicoContext *ctx, struct PicoTensor *tensor) {
-    struct PicoTensor *t = pico_tensor_from_data(ctx, tensor->shape, tensor->ndim, tensor->data);
+    if(!pico_require_cpu_backend(tensor->backend, "clone")) {
+        return NULL;
+    }
+
+    struct PicoTensor *t = pico_tensor_from_data_on(ctx, tensor->backend, tensor->shape, tensor->ndim, tensor->data);
     return t;
 }
 
 void pico_view(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *shape, int ndim) {
-    if(tensor->storage != PICO_TENSOR_STORAGE_ARENA) {
-        fprintf(stderr, "view only supports arena tensors for now\n");
+    if(tensor->kind != PICO_TENSOR_TEMP) {
+        fprintf(stderr, "view only supports temp tensors for now\n");
+        return;
+    }
+
+    if(!pico_require_cpu_backend(tensor->backend, "view")) {
         return;
     }
 
@@ -117,12 +129,18 @@ void pico_view(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *shap
         return;
     }
 
-    int64_t *newShape = (int64_t *)arena_alloc(ctx->arena, (ndim * sizeof(int64_t)));
+    struct Arena *arena = pico_context_temp_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no temp arena available for view allocation\n");
+        return;
+    }
+
+    int64_t *newShape = (int64_t *)arena_alloc(arena, (ndim * sizeof(int64_t)));
     if(newShape == NULL) {
         return;
     }
 
-    int64_t *newStrides = (int64_t *)arena_alloc(ctx->arena, ndim * sizeof(int64_t));
+    int64_t *newStrides = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
     if(newStrides == NULL) {
         return;
     }
@@ -142,8 +160,12 @@ void pico_permute(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *a
         return;
     }
 
-    if(tensor->storage != PICO_TENSOR_STORAGE_ARENA) {
-        fprintf(stderr, "permute only supports arena tensors for now\n");
+    if(tensor->kind != PICO_TENSOR_TEMP) {
+        fprintf(stderr, "permute only supports temp tensors for now\n");
+        return;
+    }
+
+    if(!pico_require_cpu_backend(tensor->backend, "permute")) {
         return;
     }
 
@@ -216,7 +238,11 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
         return NULL;
     }
 
-    struct PicoTensor *out = pico_create_tensor(ctx, tensor->shape, tensor->ndim);
+    if(!pico_require_cpu_backend(tensor->backend, "softmax")) {
+        return NULL;
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, tensor->shape, tensor->ndim);
     if(out == NULL) {
         return NULL;
     }
