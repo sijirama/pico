@@ -67,8 +67,7 @@ struct PicoTensor* pico_nn_linear_forward(struct PicoContext* ctx, struct PicoLi
         return NULL;
     }
 
-    if(layer->weights->backend != input->backend) {
-        fprintf(stderr, "[Pico] Error: In Linear - PicoTensor backends are not compatible!\n");
+    if(!pico_require_same_backend(layer->weights, input, "linear")) {
         return NULL;
     }
 

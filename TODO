@@ -1,4 +1,4 @@
-- [ ] work on the device backend system
+- [x] work on the device backend system
 
 - [ ] prep the cuda kernel flow and prep their kernels for implementation
 

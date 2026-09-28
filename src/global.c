@@ -59,7 +59,7 @@ struct PicoContext* pico_init_verbose(bool verbose) {
     }
 
     *ctx = pico_context_init();
-    if(ctx->arena == NULL) {
+    if(ctx->temp_arena == NULL || ctx->param_arena == NULL) {
         free(ctx);
         fprintf(stderr, "PicoRuntimeError: failed to initialize pico context\n");
         return NULL;

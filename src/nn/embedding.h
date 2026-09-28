@@ -55,12 +55,20 @@ static inline struct PicoTensor *pico_embedding_apply(
         return NULL;
     }
 
+    if(!pico_require_same_backend(embedding->table, input_indices, "embedding")) {
+        return NULL;
+    }
+
+    if(!pico_require_cpu_backend(input_indices->backend, "embedding")) {
+        return NULL;
+    }
+
     int ndim = 2;
     int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     res_shape[0] = input_indices->shape[0];
     res_shape[1] = embedding->embedding_dim;
 
-    struct PicoTensor *out = pico_create_tensor(ctx, res_shape, ndim);
+    struct PicoTensor *out = pico_create_tensor_on(ctx, input_indices->backend, res_shape, ndim);
 
     // For each index in input_indices, copy the corresponding embedding vector from
     // embedding->table
@@ -85,8 +93,6 @@ static inline struct PicoTensor *pico_embedding_apply(
     out->parents[0] = embedding->table;
     out->parents[1] = input_indices;
     out->_backward = pico_embedding_backward;
-    out->backend = input_indices->backend;
-
     return out;
 }
 

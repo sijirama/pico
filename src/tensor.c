@@ -55,12 +55,45 @@ void pico_backward(
     pico_vec_free(&visited);
 }
 
-// INFO: params are heap-backed because optimizers keep
-// pointers to them across arena resets. weights, biases,
-// and long-lived input data should use this path.
+static struct PicoTensor *pico_tensor_alloc_metadata(
+    struct Arena *arena,
+    int64_t *shape,
+    uint8_t ndim,
+    enum PicoTensorKind kind,
+    PicoBackend backend) {
+    if(arena == NULL) {
+        return NULL;
+    }
+
+    struct PicoTensor *tensor =
+        (struct PicoTensor *)arena_alloc(arena, sizeof(struct PicoTensor));
+    if(tensor == NULL) {
+        return NULL;
+    }
+
+    memset(tensor, 0, sizeof(struct PicoTensor));
+    tensor->ndim = ndim;
+    tensor->kind = kind;
+    tensor->backend = backend;
+
+    tensor->shape = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    tensor->strides = (int64_t *)arena_alloc(arena, ndim * sizeof(int64_t));
+    if(tensor->shape == NULL || tensor->strides == NULL) {
+        return NULL;
+    }
+
+    memcpy(tensor->shape, shape, ndim * sizeof(int64_t));
+    tensor->numel = pico_compute_numel(tensor->shape, tensor->ndim);
+    pico_compute_strides(tensor->shape, tensor->ndim, tensor->strides);
+
+    return tensor;
+}
+
+// INFO: params are trainable ctx-owned tensors. metadata lives in param_arena;
+// CPU data/grad live there too. CUDA data/grad will live in VRAM later.
 struct PicoTensor *pico_param(
     struct PicoContext *ctx, int64_t *shape, uint8_t ndim) {
-    return pico_param_named(ctx, NULL, shape, ndim);
+    return pico_param_named_on(ctx, PICO_BACKEND_CPU, NULL, shape, ndim);
 }
 
 struct PicoTensor *pico_param_named(
@@ -68,57 +101,45 @@ struct PicoTensor *pico_param_named(
     char *name,
     int64_t *shape,
     uint8_t ndim) {
+    return pico_param_named_on(ctx, PICO_BACKEND_CPU, name, shape, ndim);
+}
 
-    struct PicoTensor *tensor = (struct PicoTensor *)calloc(
-        1, sizeof(struct PicoTensor));
+struct PicoTensor *pico_param_on(
+    struct PicoContext *ctx, PicoBackend backend, int64_t *shape, uint8_t ndim) {
+    return pico_param_named_on(ctx, backend, NULL, shape, ndim);
+}
+
+struct PicoTensor *pico_param_named_on(
+    struct PicoContext *ctx,
+    PicoBackend backend,
+    char *name,
+    int64_t *shape,
+    uint8_t ndim) {
+    struct Arena *arena = pico_context_param_arena(ctx);
+    if(arena == NULL) {
+        fprintf(
+            stderr,
+            "PicoArenaError: no param arena available for param allocation\n");
+        return NULL;
+    }
+
+    struct PicoTensor *tensor =
+        pico_tensor_alloc_metadata(arena, shape, ndim, PICO_TENSOR_PARAM, backend);
     if(tensor == NULL) {
-        printf("Memory allocation failed!\n");
         return NULL;
     }
 
-    tensor->ndim = ndim;
-    tensor->storage = PICO_TENSOR_STORAGE_HEAP;
-
-    // allocate and copy the shape array
-    tensor->shape =
-        (int64_t *)calloc(ndim, sizeof(int64_t));
-    if(tensor->shape == NULL) {
-        free(tensor);
-        return NULL;
-    }
-    memcpy(tensor->shape, shape, ndim * sizeof(int64_t));
-
-    tensor->name = NULL;
     if(name != NULL) {
-        tensor->name =
-            malloc(strlen(name) * sizeof(char) + 1);
+        tensor->name = arena_alloc(arena, strlen(name) + 1);
+        if(tensor->name == NULL) {
+            return NULL;
+        }
         strcpy(tensor->name, name);
     }
 
-    // compute number of elements
-    int numel =
-        pico_compute_numel(tensor->shape, tensor->ndim);
-
-    tensor->data = (float *)calloc(numel, sizeof(float));
-    tensor->grad = (float *)calloc(numel, sizeof(float));
-    tensor->strides =
-        (int64_t *)calloc(tensor->ndim, sizeof(int64_t));
-
-    // check if any inner allocations failed
-    if(tensor->data == NULL || tensor->grad == NULL ||
-       tensor->strides == NULL) {
-        free(tensor->shape);
-        free(tensor->name);
-        free(tensor->data);
-        free(tensor->grad);
-        free(tensor->strides);
-        free(tensor);
+    if(!pico_tensor_init_data_on(ctx, tensor, backend)) {
         return NULL;
     }
-
-    tensor->numel = numel;
-    // compute strides using the freshly allocated array
-    pico_compute_strides(shape, ndim, tensor->strides);
 
     pico_context_register_param(ctx, tensor);
 
@@ -130,113 +151,31 @@ struct PicoTensor *pico_param_named(
 // loop can drop them all with one reset.
 struct PicoTensor *pico_create_tensor(
     struct PicoContext *ctx, int64_t *shape, uint8_t ndim) {
-    struct Arena *arena = pico_context_arena(ctx);
+    return pico_create_tensor_on(ctx, PICO_BACKEND_CPU, shape, ndim);
+}
+
+struct PicoTensor *pico_create_tensor_on(
+    struct PicoContext *ctx, PicoBackend backend, int64_t *shape, uint8_t ndim) {
+    struct Arena *arena = pico_context_temp_arena(ctx);
     if(arena == NULL) {
         fprintf(
             stderr,
-            "PicoArenaError: no arena available for tensor "
+            "PicoArenaError: no temp arena available for tensor "
             "allocation\n");
         return NULL;
     }
 
     struct PicoTensor *tensor =
-        (struct PicoTensor *)arena_alloc(
-            arena, sizeof(struct PicoTensor));
+        pico_tensor_alloc_metadata(arena, shape, ndim, PICO_TENSOR_TEMP, backend);
     if(tensor == NULL) {
-        printf("Memory allocation failed!\n");
         return NULL;
     }
 
-    tensor->ndim = ndim;
-    tensor->storage = PICO_TENSOR_STORAGE_ARENA;
-
-    // arena_alloc returns GARBAGE (not zeroed like calloc),
-    // so init these by hand or the op/autograd code will
-    // read junk pointers.
-    tensor->_backward = NULL;
-    tensor->parents = NULL;
-    tensor->num_parents = 0;
-    tensor->backend =
-        CPU; // ops override this to inherit from inputs
-
-    // allocate and copy the shape array
-    tensor->shape = (int64_t *)arena_alloc(
-        arena, (ndim * sizeof(int64_t)));
-    if(tensor->shape == NULL) {
-        free(tensor);
+    if(!pico_tensor_init_data_on(ctx, tensor, backend)) {
         return NULL;
     }
-    memcpy(tensor->shape, shape, ndim * sizeof(int64_t));
-
-    // compute number of elements
-    int numel =
-        pico_compute_numel(tensor->shape, tensor->ndim);
-
-    tensor->data =
-        (float *)arena_alloc(arena, numel * sizeof(float));
-    memset(tensor->data, 0, numel * sizeof(float));
-    tensor->grad =
-        (float *)arena_alloc(arena, numel * sizeof(float));
-    memset(tensor->grad, 0, numel * sizeof(float));
-    tensor->strides = (int64_t *)arena_alloc(
-        arena, tensor->ndim * sizeof(int64_t));
-
-    // check if any inner allocations failed
-    if(tensor->data == NULL || tensor->grad == NULL ||
-       tensor->strides == NULL) {
-        free(tensor->shape);
-        free(tensor->data);
-        free(tensor->grad);
-        free(tensor->strides);
-        free(tensor);
-        return NULL;
-    }
-
-    tensor->numel = numel;
-    pico_compute_strides(shape, ndim, tensor->strides);
 
     return tensor;
-}
-
-// INFO: internal heap-tensor cleanup. public code should
-// destroy the owning ctx; arena tensors are ignored because
-// freeing them individually would corrupt the bump
-// allocator model.
-void pico_tensor_free_heap(struct PicoTensor *tensor) {
-    // if the pointer is already NULL, do nothing safely
-    if(tensor == NULL) {
-        return;
-    }
-
-    // check if memory is in an arena
-    if(tensor->storage == PICO_TENSOR_STORAGE_ARENA) {
-        return;
-    }
-
-    // free internal arrays first
-    if(tensor->shape != NULL) {
-        free(tensor->shape);
-    }
-    if(tensor->strides != NULL) {
-        free(tensor->strides);
-    }
-    if(tensor->data != NULL) {
-        free(tensor->data);
-    }
-    if(tensor->grad != NULL) {
-        free(tensor->grad);
-    }
-    if(tensor->name != NULL) {
-        free(tensor->name);
-    }
-
-    // free the dynamic parent array if it was allocated
-    if(tensor->parents != NULL) {
-        free(tensor->parents);
-    }
-
-    // free the main tensor structure
-    free(tensor);
 }
 
 // a 1-element tensor holding `value`. shape {1} ->
@@ -246,21 +185,22 @@ void pico_tensor_free_heap(struct PicoTensor *tensor) {
 // constant in the graph.
 struct PicoTensor *pico_tensor_from_scalar(
     struct PicoContext *ctx, float value) {
-    if(pico_context_arena(ctx) == NULL) {
-        fprintf(
-            stderr,
-            "PicoArenaError: no arena available for scalar "
-            "tensor allocation\n");
-        return NULL;
-    }
+    return pico_tensor_from_scalar_on(ctx, PICO_BACKEND_CPU, value);
+}
 
+struct PicoTensor *pico_tensor_from_scalar_on(
+    struct PicoContext *ctx, PicoBackend backend, float value) {
     int64_t shape[1] = {1};
     struct PicoTensor *tensor =
-        pico_create_tensor(ctx, shape, 1);
+        pico_create_tensor_on(ctx, PICO_BACKEND_CPU, shape, 1);
     if(tensor == NULL) {
         return NULL;
     }
     tensor->data[0] = value;
+
+    if(!pico_tensor_to_backend(ctx, tensor, backend)) {
+        return NULL;
+    }
 
     return tensor;
 }
@@ -273,14 +213,15 @@ struct PicoTensor *pico_tensor_from_data(
     int64_t *shape,
     uint8_t ndim,
     const float *data) {
-    if(pico_context_arena(ctx) == NULL) {
-        fprintf(
-            stderr,
-            "PicoArenaError: no arena available for tensor "
-            "data allocation\n");
-        return NULL;
-    }
+    return pico_tensor_from_data_on(ctx, PICO_BACKEND_CPU, shape, ndim, data);
+}
 
+struct PicoTensor *pico_tensor_from_data_on(
+    struct PicoContext *ctx,
+    PicoBackend backend,
+    int64_t *shape,
+    uint8_t ndim,
+    const float *data) {
     if(data == NULL) {
         fprintf(
             stderr,
@@ -290,13 +231,17 @@ struct PicoTensor *pico_tensor_from_data(
     }
 
     struct PicoTensor *tensor =
-        pico_create_tensor(ctx, shape, ndim);
+        pico_create_tensor_on(ctx, PICO_BACKEND_CPU, shape, ndim);
     if(tensor == NULL) {
         return NULL;
     }
 
     memcpy(
         tensor->data, data, tensor->numel * sizeof(float));
+
+    if(!pico_tensor_to_backend(ctx, tensor, backend)) {
+        return NULL;
+    }
 
     return tensor;
 }

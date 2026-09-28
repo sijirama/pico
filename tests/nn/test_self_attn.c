@@ -216,16 +216,16 @@ UTEST(self_attn, init_sets_dims_and_projection_shapes) {
     pico_shutdown(ctx);
 }
 
-UTEST(self_attn, init_params_are_heap_tensors) {
+UTEST(self_attn, init_params_are_param_tensors) {
     struct PicoContext* ctx = pico_init_verbose(false);
 
     struct PicoAttn* attn = pico_nn_attn_init(ctx, "block.attn", 12, 3, 4);
 
     ASSERT_TRUE(attn != NULL);
-    ASSERT_EQ(attn->Q->storage, PICO_TENSOR_STORAGE_HEAP);
-    ASSERT_EQ(attn->K->storage, PICO_TENSOR_STORAGE_HEAP);
-    ASSERT_EQ(attn->V->storage, PICO_TENSOR_STORAGE_HEAP);
-    ASSERT_EQ(attn->O->storage, PICO_TENSOR_STORAGE_HEAP);
+    ASSERT_EQ(attn->Q->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(attn->K->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(attn->V->kind, PICO_TENSOR_PARAM);
+    ASSERT_EQ(attn->O->kind, PICO_TENSOR_PARAM);
 
     pico_nn_attn_free(attn);
     pico_shutdown(ctx);
