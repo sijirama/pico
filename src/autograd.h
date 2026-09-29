@@ -32,6 +32,7 @@
  *    add   self=a+b   d/da=1,  d/db=1     -> a.grad += g;      b.grad += g
  *    sub   self=a-b   d/da=1,  d/db=-1    -> a.grad += g;      b.grad -= g
  *    mul   self=a*b   d/da=b,  d/db=a     -> a.grad += g*b;    b.grad += g*a
+ *    div   self=a/b   d/da=1/b,d/db=-a/b² -> a.grad += g/b;    b.grad -= g*a/(b*b)
  *    relu  self=max(0,x)  d/dx = (x>0?1:0) -> x.grad += g*(x>0?1:0)
  *          a GATE: passes grad where input was +, blocks it where -. an off neuron
  *          gets 0 grad; one stuck negative never updates = "dying ReLU".
@@ -90,6 +91,30 @@ static inline void pico_mul_backward(struct PicoTensor* self) {
         ib = map_index(i, b, self->strides, self->ndim);
         a->grad[ia] += self->grad[i] * b->data[ib];
         b->grad[ib] += self->grad[i] * a->data[ia];
+    }
+}
+
+static inline void pico_div_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    struct PicoTensor* b = self->parents[1];
+
+    int64_t ia = 0;
+    int64_t ib = 0;
+    for(int64_t i = 0; i < self->numel; i++) {
+        ia = map_index(i, a, self->strides, self->ndim);
+        ib = map_index(i, b, self->strides, self->ndim);
+        float denom = b->data[ib];
+        a->grad[ia] += self->grad[i] / denom;
+        b->grad[ib] -= self->grad[i] * a->data[ia] / (denom * denom);
+    }
+}
+
+static inline void pico_dropout_backward(struct PicoTensor* self) {
+    struct PicoTensor* input = self->parents[0];
+    struct PicoTensor* mask = self->parents[1];
+
+    for(int64_t i = 0; i < self->numel; i++) {
+        input->grad[i] += self->grad[i] * mask->data[i];
     }
 }
 

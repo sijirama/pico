@@ -260,3 +260,236 @@ UTEST(loss, mse_through_pico_backward) {
 
     pico_shutdown(ctx);
 }
+
+UTEST(loss_cross_entropy, forward_single_row_mean) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {2.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 1, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss != NULL);
+    ASSERT_TRUE(loss->numel == 1);
+    ASSERT_NEAR(loss->data[0], 0.40760595f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, forward_2d_mean_reduces_over_rows) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {2, 3};
+    float logits_data[] = {
+        1.0f, 2.0f, 3.0f,
+        1.0f, 3.0f, 2.0f,
+    };
+    int64_t target_shape[] = {2};
+    float target_data[] = {2.0f, 1.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss != NULL);
+    ASSERT_NEAR(loss->data[0], 0.40760595f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, forward_sum_does_not_average_rows) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {2, 3};
+    float logits_data[] = {
+        1.0f, 2.0f, 3.0f,
+        1.0f, 3.0f, 2.0f,
+    };
+    int64_t target_shape[] = {2};
+    float target_data[] = {2.0f, 1.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_SUM};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss != NULL);
+    ASSERT_NEAR(loss->data[0], 0.8152119f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, forward_3d_next_token_shape) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {2, 2, 3};
+    float logits_data[] = {
+        1.0f, 2.0f, 3.0f,
+        1.0f, 3.0f, 2.0f,
+        3.0f, 2.0f, 1.0f,
+        2.0f, 1.0f, 3.0f,
+    };
+    int64_t target_shape[] = {2, 2};
+    float target_data[] = {2.0f, 1.0f, 0.0f, 2.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 3, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 2, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss != NULL);
+    ASSERT_NEAR(loss->data[0], 0.40760595f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, wires_graph) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {1, 3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {2.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss != NULL);
+    ASSERT_EQ(loss->num_parents, 2);
+    ASSERT_TRUE(loss->parents[0] == logits);
+    ASSERT_TRUE(loss->parents[1] == targets);
+    ASSERT_TRUE(loss->_backward != NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, backward_single_row_matches_softmax_minus_onehot) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {2.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 1, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+    loss->grad[0] = 1.0f;
+    loss->_backward(loss);
+
+    ASSERT_NEAR(logits->grad[0], 0.09003057f, 1e-5f);
+    ASSERT_NEAR(logits->grad[1], 0.24472847f, 1e-5f);
+    ASSERT_NEAR(logits->grad[2], -0.33475904f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, backward_mean_scales_by_number_of_rows) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {2, 3};
+    float logits_data[] = {
+        1.0f, 2.0f, 3.0f,
+        1.0f, 3.0f, 2.0f,
+    };
+    int64_t target_shape[] = {2};
+    float target_data[] = {2.0f, 1.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+    loss->grad[0] = 1.0f;
+    loss->_backward(loss);
+
+    ASSERT_NEAR(logits->grad[0], 0.04501529f, 1e-5f);
+    ASSERT_NEAR(logits->grad[1], 0.12236424f, 1e-5f);
+    ASSERT_NEAR(logits->grad[2], -0.16737952f, 1e-5f);
+    ASSERT_NEAR(logits->grad[3], 0.04501529f, 1e-5f);
+    ASSERT_NEAR(logits->grad[4], -0.16737952f, 1e-5f);
+    ASSERT_NEAR(logits->grad[5], 0.12236424f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, through_pico_backward) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {2.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 1, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+    pico_backward(ctx, loss);
+
+    ASSERT_NEAR(logits->grad[0], 0.09003057f, 1e-5f);
+    ASSERT_NEAR(logits->grad[1], 0.24472847f, 1e-5f);
+    ASSERT_NEAR(logits->grad[2], -0.33475904f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, rejects_shape_mismatch) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {2, 3};
+    int64_t target_shape[] = {3};
+    struct PicoTensor* logits = pico_param(ctx, logits_shape, 2);
+    struct PicoTensor* targets = pico_param(ctx, target_shape, 1);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, rejects_target_out_of_range) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {1, 3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {3.0f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(loss_cross_entropy, rejects_non_integer_target) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t logits_shape[] = {1, 3};
+    float logits_data[] = {1.0f, 2.0f, 3.0f};
+    int64_t target_shape[] = {1};
+    float target_data[] = {1.5f};
+    struct PicoTensor* logits = pico_tensor_from_data(ctx, logits_shape, 2, logits_data);
+    struct PicoTensor* targets = pico_tensor_from_data(ctx, target_shape, 1, target_data);
+
+    struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
+    struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, targets);
+
+    ASSERT_TRUE(loss == NULL);
+
+    pico_shutdown(ctx);
+}

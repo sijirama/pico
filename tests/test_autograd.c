@@ -740,6 +740,127 @@ UTEST(broadcast_backward, mul_row) {
     pico_shutdown(ctx);
 }
 
+// ===================================================================
+//  ELEMENT-WISE DIV (pico_div) — forward + backward.
+// ===================================================================
+
+UTEST(div, forward_elementwise) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {3};
+    struct PicoTensor* a = pico_param(ctx, s, 1);
+    struct PicoTensor* b = pico_param(ctx, s, 1);
+    float av[] = {8, 9, 10};
+    float bv[] = {2, 3, 5};
+    for(int i = 0; i < 3; i++) {
+        a->data[i] = av[i];
+        b->data[i] = bv[i];
+    }
+
+    struct PicoTensor* c = pico_div(ctx, a, b);
+
+    ASSERT_NEAR(c->data[0], 4.0f, 1e-6f);
+    ASSERT_NEAR(c->data[1], 3.0f, 1e-6f);
+    ASSERT_NEAR(c->data[2], 2.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(div, forward_broadcast) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(ctx, sa, 2);
+    float av[] = {10, 20, 30, 40};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(ctx, sb, 1);
+    b->data[0] = 10.0f;
+    b->data[1] = 20.0f;
+
+    struct PicoTensor* c = pico_div(ctx, a, b);
+    ASSERT_EQ(c->ndim, 2);
+    ASSERT_EQ(c->numel, 4);
+
+    ASSERT_NEAR(c->data[0], 1.0f, 1e-6f);
+    ASSERT_NEAR(c->data[1], 1.0f, 1e-6f);
+    ASSERT_NEAR(c->data[2], 3.0f, 1e-6f);
+    ASSERT_NEAR(c->data[3], 2.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(div, wires_graph) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {2};
+    struct PicoTensor* a = pico_param(ctx, s, 1);
+    struct PicoTensor* b = pico_param(ctx, s, 1);
+    struct PicoTensor* c = pico_div(ctx, a, b);
+
+    ASSERT_EQ(c->num_parents, 2);
+    ASSERT_TRUE(c->parents[0] == a);
+    ASSERT_TRUE(c->parents[1] == b);
+    ASSERT_TRUE(c->_backward != NULL);
+
+    pico_shutdown(ctx);
+}
+
+// a/b gives d/da = 1/b and d/db = -a/(b*b).
+UTEST(div, backward_same_shape) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {2};
+    struct PicoTensor* a = pico_param(ctx, s, 1);
+    struct PicoTensor* b = pico_param(ctx, s, 1);
+    a->data[0] = 8.0f;
+    a->data[1] = 9.0f;
+    b->data[0] = 2.0f;
+    b->data[1] = 3.0f;
+
+    struct PicoTensor* c = pico_div(ctx, a, b);
+    c->grad[0] = 10.0f;
+    c->grad[1] = 12.0f;
+    c->_backward(c);
+
+    ASSERT_NEAR(a->grad[0], 5.0f, 1e-6f);
+    ASSERT_NEAR(a->grad[1], 4.0f, 1e-6f);
+    ASSERT_NEAR(b->grad[0], -20.0f, 1e-6f);
+    ASSERT_NEAR(b->grad[1], -12.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(broadcast_backward, div_row) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t sa[] = {2, 2};
+    struct PicoTensor* a = pico_param(ctx, sa, 2);
+    float av[] = {10, 20, 30, 40};
+    for(int i = 0; i < 4; i++) a->data[i] = av[i];
+
+    int64_t sb[] = {2};
+    struct PicoTensor* b = pico_param(ctx, sb, 1);
+    b->data[0] = 10.0f;
+    b->data[1] = 20.0f;
+
+    struct PicoTensor* c = pico_div(ctx, a, b);
+
+    float g[] = {1, 2, 3, 4};
+    for(int i = 0; i < 4; i++) c->grad[i] = g[i];
+    c->_backward(c);
+
+    ASSERT_NEAR(a->grad[0], 0.1f, 1e-6f);
+    ASSERT_NEAR(a->grad[1], 0.1f, 1e-6f);
+    ASSERT_NEAR(a->grad[2], 0.3f, 1e-6f);
+    ASSERT_NEAR(a->grad[3], 0.2f, 1e-6f);
+    ASSERT_NEAR(b->grad[0], -1.0f, 1e-6f);
+    ASSERT_NEAR(b->grad[1], -0.5f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
 // same thing but through the FULL traversal (seeds grad=1, walks): the bias
 // pattern in miniature. self = a + b, b stretched -> b.grad should be N (row count).
 //   (2,2) + (2,), grad seeded to 1 everywhere:

@@ -281,3 +281,65 @@ UTEST(kernel_avx2, mul_size19_vector_plus_tail) {
     ASSERT_TRUE(o16 == 256.0f);
     ASSERT_TRUE(o18 == 324.0f);
 }
+
+// div, 16 elems (two full vectors). a[i]=2i, b[i]=2 -> out[i]=i
+UTEST(kernel_avx2, div_size16_two_vectors) {
+    if(!__builtin_cpu_supports("avx2")) return;
+
+    SimdLevel saved = g_simd_level;
+    g_simd_level = SIMD_AVX2;
+
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {16};
+    struct PicoTensor* a = pico_param(ctx, s, 1);
+    struct PicoTensor* b = pico_param(ctx, s, 1);
+    for(int i = 0; i < 16; i++) {
+        a->data[i] = (float)(i * 2);
+        b->data[i] = 2.0f;
+    }
+
+    struct PicoTensor* out = pico_div(ctx, a, b);
+    float o0 = out->data[0];
+    float o7 = out->data[7];
+    float o8 = out->data[8];
+    float o15 = out->data[15];
+
+    pico_shutdown(ctx);
+    g_simd_level = saved;
+
+    ASSERT_TRUE(o0 == 0.0f);
+    ASSERT_TRUE(o7 == 7.0f);
+    ASSERT_TRUE(o8 == 8.0f);
+    ASSERT_TRUE(o15 == 15.0f);
+}
+
+// div, 19 elems checks the vector body plus scalar tail.
+UTEST(kernel_avx2, div_size19_vector_plus_tail) {
+    if(!__builtin_cpu_supports("avx2")) return;
+
+    SimdLevel saved = g_simd_level;
+    g_simd_level = SIMD_AVX2;
+
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {19};
+    struct PicoTensor* a = pico_param(ctx, s, 1);
+    struct PicoTensor* b = pico_param(ctx, s, 1);
+    for(int i = 0; i < 19; i++) {
+        a->data[i] = (float)(i * 3);
+        b->data[i] = 3.0f;
+    }
+
+    struct PicoTensor* out = pico_div(ctx, a, b);
+    float o15 = out->data[15];
+    float o16 = out->data[16];
+    float o18 = out->data[18];
+
+    pico_shutdown(ctx);
+    g_simd_level = saved;
+
+    ASSERT_TRUE(o15 == 15.0f);
+    ASSERT_TRUE(o16 == 16.0f);
+    ASSERT_TRUE(o18 == 18.0f);
+}

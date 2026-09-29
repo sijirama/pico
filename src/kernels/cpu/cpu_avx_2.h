@@ -40,3 +40,4 @@
 PICO_DEFINE_BINARY_OP_AVX2_FP32(pico_add, _mm256_add_ps, +);
 PICO_DEFINE_BINARY_OP_AVX2_FP32(pico_sub, _mm256_sub_ps, -);
 PICO_DEFINE_BINARY_OP_AVX2_FP32(pico_mul, _mm256_mul_ps, *);
+PICO_DEFINE_BINARY_OP_AVX2_FP32(pico_div, _mm256_div_ps, /);

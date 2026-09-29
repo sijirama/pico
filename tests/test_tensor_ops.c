@@ -1,4 +1,6 @@
+#include <math.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "pico.h"
 #include "utest.h"
@@ -306,6 +308,346 @@ UTEST(tensor_ops_softmax, reads_permuted_tensor_layout) {
     ASSERT_NEAR(out->data[3], 0.95257413f, 1e-5f);
     ASSERT_NEAR(out->data[4], 0.04742587f, 1e-5f);
     ASSERT_NEAR(out->data[5], 0.95257413f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, reduces_entire_tensor_with_dim_minus_one) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_sum(ctx, tensor, -1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)1);
+    ASSERT_EQ(out->numel, 1);
+    ASSERT_NEAR(out->data[0], 21.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, reduces_rows_for_dim_0) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_sum(ctx, tensor, 0);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)3);
+    ASSERT_NEAR(out->data[0], 5.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 7.0f, 1e-6f);
+    ASSERT_NEAR(out->data[2], 9.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, reduces_columns_for_dim_1) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_sum(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)2);
+    ASSERT_NEAR(out->data[0], 6.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 15.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, reduces_middle_dim_for_3d_tensor) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 2, 3};
+    float values[] = {
+        1.0f, 2.0f, 3.0f,
+        4.0f, 5.0f, 6.0f,
+        7.0f, 8.0f, 9.0f,
+        10.0f, 11.0f, 12.0f,
+    };
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 3, values);
+
+    struct PicoTensor* out = pico_sum(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 2);
+    ASSERT_EQ(out->shape[0], (int64_t)2);
+    ASSERT_EQ(out->shape[1], (int64_t)3);
+
+    float expected[] = {5.0f, 7.0f, 9.0f, 17.0f, 19.0f, 21.0f};
+    for(int i = 0; i < 6; i++) {
+        ASSERT_NEAR(out->data[i], expected[i], 1e-6f);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, reads_transposed_strided_tensor_layout) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    pico_transpose_2d(tensor);
+    struct PicoTensor* out = pico_sum(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->shape[0], (int64_t)3);
+    ASSERT_NEAR(out->data[0], 5.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 7.0f, 1e-6f);
+    ASSERT_NEAR(out->data[2], 9.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_sum, rejects_dim_out_of_range) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    ASSERT_TRUE(pico_sum(ctx, tensor, 2) == NULL);
+    ASSERT_TRUE(pico_sum(ctx, tensor, -2) == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_mean, reduces_entire_tensor_with_dim_minus_one) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_mean(ctx, tensor, -1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->shape[0], (int64_t)1);
+    ASSERT_NEAR(out->data[0], 3.5f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_mean, reduces_dim_using_sum_result) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_mean(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->shape[0], (int64_t)2);
+    ASSERT_NEAR(out->data[0], 2.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 5.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_var, reduces_entire_tensor_with_dim_minus_one) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {4};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_var(ctx, tensor, -1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)1);
+    ASSERT_NEAR(out->data[0], 1.25f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_var, reduces_rows_for_dim_0) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 5.0f, 8.0f, 11.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_var(ctx, tensor, 0);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)3);
+    ASSERT_NEAR(out->data[0], 4.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 9.0f, 1e-6f);
+    ASSERT_NEAR(out->data[2], 16.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_var, reduces_columns_for_dim_1) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 2.0f, 4.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_var(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 1);
+    ASSERT_EQ(out->shape[0], (int64_t)2);
+    ASSERT_NEAR(out->data[0], 0.6666667f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 2.6666667f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_var, reads_transposed_strided_tensor_layout) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 5.0f, 8.0f, 11.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    pico_transpose_2d(tensor);
+    struct PicoTensor* out = pico_var(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->shape[0], (int64_t)3);
+    ASSERT_NEAR(out->data[0], 4.0f, 1e-6f);
+    ASSERT_NEAR(out->data[1], 9.0f, 1e-6f);
+    ASSERT_NEAR(out->data[2], 16.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_var, rejects_dim_out_of_range) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    ASSERT_TRUE(pico_var(ctx, tensor, 2) == NULL);
+    ASSERT_TRUE(pico_var(ctx, tensor, -2) == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_layernorm_parts, sqrt_exists_for_variance_path) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {1};
+    float values[] = {9.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_sqrt(ctx, tensor);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_NEAR(out->data[0], 3.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_dropout, train_mode_zeros_or_scales_each_value) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {8};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_dropout(ctx, tensor, 0.5f);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->num_parents, 2);
+    ASSERT_TRUE(out->parents[0] == tensor);
+    ASSERT_TRUE(out->_backward != NULL);
+    for(int i = 0; i < 8; i++) {
+        bool dropped = out->data[i] == 0.0f;
+        bool kept_and_scaled = fabsf(out->data[i] - values[i] * 2.0f) < 1e-6f;
+        ASSERT_TRUE(dropped || kept_and_scaled);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_dropout, eval_mode_returns_identity_values) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    ctx->mode = PICO_EVAL;
+
+    int64_t shape[] = {4};
+    float values[] = {1.0f, -2.0f, 3.0f, -4.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_dropout(ctx, tensor, 0.75f);
+
+    ASSERT_TRUE(out != NULL);
+    for(int i = 0; i < 4; i++) {
+        ASSERT_NEAR(out->data[i], values[i], 1e-6f);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_dropout, p_zero_returns_identity_values) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {4};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_dropout(ctx, tensor, 0.0f);
+
+    ASSERT_TRUE(out != NULL);
+    for(int i = 0; i < 4; i++) {
+        ASSERT_NEAR(out->data[i], values[i], 1e-6f);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_dropout, backward_reuses_same_mask) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {6};
+    float values[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_dropout(ctx, tensor, 0.5f);
+    struct PicoTensor* mask = out->parents[1];
+    for(int i = 0; i < 6; i++) {
+        out->grad[i] = 1.0f;
+    }
+
+    out->_backward(out);
+
+    for(int i = 0; i < 6; i++) {
+        ASSERT_NEAR(tensor->grad[i], mask->data[i], 1e-6f);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_dropout, rejects_invalid_probability) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2};
+    float values[] = {1.0f, 2.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    ASSERT_TRUE(pico_dropout(ctx, tensor, -0.1f) == NULL);
+    ASSERT_TRUE(pico_dropout(ctx, tensor, 1.0f) == NULL);
 
     pico_shutdown(ctx);
 }

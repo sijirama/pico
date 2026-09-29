@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "arena.h"
+#include "autograd.h"
 #include "ctx.h"
 #include "tensor.h"
 
@@ -228,6 +229,62 @@ void pico_permute(struct PicoContext *ctx, struct PicoTensor *tensor, int64_t *a
     tensor->data = newData;
 }
 
+struct PicoTensor *pico_dropout(struct PicoContext *ctx, struct PicoTensor *tensor, float p) {
+    if(ctx == NULL || tensor == NULL) {
+        return NULL;
+    }
+
+    if(p < 0.0f || p >= 1.0f) {
+        fprintf(stderr, "dropout p must be in [0, 1)\n");
+        return NULL;
+    }
+
+    if(!pico_require_cpu_backend(tensor->backend, "dropout")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for dropout allocation\n");
+        return NULL;
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, tensor->shape, tensor->ndim);
+    struct PicoTensor *mask = pico_create_tensor_on(ctx, tensor->backend, tensor->shape, tensor->ndim);
+    if(out == NULL || mask == NULL) {
+        return NULL;
+    }
+
+    if(ctx->mode == PICO_EVAL || p == 0.0f) {
+        for(int64_t i = 0; i < tensor->numel; i++) {
+            mask->data[i] = 1.0f;
+            out->data[i] = tensor->data[i];
+        }
+    } else {
+        struct PicoTensor *random = pico_rand(ctx, tensor->shape, tensor->ndim);
+        if(random == NULL) {
+            return NULL;
+        }
+
+        float scale = 1.0f / (1.0f - p);
+        for(int64_t i = 0; i < tensor->numel; i++) {
+            mask->data[i] = random->data[i] >= p ? scale : 0.0f;
+            out->data[i] = tensor->data[i] * mask->data[i];
+        }
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
+    if(out->parents == NULL) {
+        return NULL;
+    }
+    out->parents[0] = tensor;
+    out->parents[1] = mask;
+    out->num_parents = 2;
+    out->_backward = pico_dropout_backward;
+
+    return out;
+}
+
 struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tensor, uint8_t dim) {
     if(ctx == NULL || tensor == NULL) {
         return NULL;
@@ -285,6 +342,200 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
         for(int64_t i = 0; i < axis_len; i++) {
             out->data[output_base + i * out->strides[dim]] /= sum;
         }
+    }
+
+    return out;
+}
+
+struct PicoTensor *pico_sum(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {
+    if(ctx == NULL || tensor == NULL) {
+        return NULL;
+    }
+
+    if(dim < -1 || dim >= tensor->ndim) {
+        fprintf(stderr, "sum dim is out of range\n");
+        return NULL;
+    }
+
+    if(!pico_require_cpu_backend(tensor->backend, "sum")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for sum allocation\n");
+        return NULL;
+    }
+
+    if(dim == -1) {
+        int64_t scalar_shape[1] = {1};
+        struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, scalar_shape, 1);
+        if(out == NULL) {
+            return NULL;
+        }
+
+        float sum = 0.0f;
+        for(int64_t i = 0; i < tensor->numel; i++) {
+            sum += tensor->data[i];
+        }
+        out->data[0] = sum;
+        return out;
+    }
+
+    uint8_t out_ndim = tensor->ndim == 1 ? 1 : tensor->ndim - 1;
+    int64_t *out_shape = arena_alloc(arena, sizeof(int64_t) * out_ndim);
+    if(out_shape == NULL) {
+        return NULL;
+    }
+
+    if(tensor->ndim == 1) {
+        out_shape[0] = 1;
+    } else {
+        int out_d = 0;
+        for(int d = 0; d < tensor->ndim; d++) {
+            if(d != dim) {
+                out_shape[out_d++] = tensor->shape[d];
+            }
+        }
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, out_shape, out_ndim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    int64_t axis_len = tensor->shape[dim];
+    for(int64_t out_i = 0; out_i < out->numel; out_i++) {
+        int64_t rem = out_i;
+        int64_t input_base = 0;
+
+        for(int d = tensor->ndim - 1; d >= 0; d--) {
+            if(d == dim) {
+                continue;
+            }
+
+            int64_t out_shape_d = tensor->shape[d];
+            int64_t coord = rem % out_shape_d;
+            rem /= out_shape_d;
+            input_base += coord * tensor->strides[d];
+        }
+
+        float sum = 0.0f;
+        for(int64_t i = 0; i < axis_len; i++) {
+            sum += tensor->data[input_base + i * tensor->strides[dim]];
+        }
+        out->data[out_i] = sum;
+    }
+
+    return out;
+}
+
+struct PicoTensor *pico_mean(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {
+    struct PicoTensor *out = pico_sum(ctx, tensor, dim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    float divisor = dim == -1 ? (float)tensor->numel : (float)tensor->shape[dim];
+    for(int64_t i = 0; i < out->numel; i++) {
+        out->data[i] /= divisor;
+    }
+
+    return out;
+}
+
+struct PicoTensor *pico_var(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {
+    if(ctx == NULL || tensor == NULL) {
+        return NULL;
+    }
+
+    if(dim < -1 || dim >= tensor->ndim) {
+        fprintf(stderr, "var dim is out of range\n");
+        return NULL;
+    }
+
+    if(!pico_require_cpu_backend(tensor->backend, "var")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for var allocation\n");
+        return NULL;
+    }
+
+    if(dim == -1) {
+        int64_t scalar_shape[1] = {1};
+        struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, scalar_shape, 1);
+        if(out == NULL) {
+            return NULL;
+        }
+
+        float mean = 0.0f;
+        for(int64_t i = 0; i < tensor->numel; i++) {
+            mean += tensor->data[i];
+        }
+        mean /= (float)tensor->numel;
+
+        float var = 0.0f;
+        for(int64_t i = 0; i < tensor->numel; i++) {
+            float diff = tensor->data[i] - mean;
+            var += diff * diff;
+        }
+        out->data[0] = var / (float)tensor->numel;
+        return out;
+    }
+
+    uint8_t out_ndim = tensor->ndim == 1 ? 1 : tensor->ndim - 1;
+    int64_t *out_shape = arena_alloc(arena, sizeof(int64_t) * out_ndim);
+    if(out_shape == NULL) {
+        return NULL;
+    }
+
+    if(tensor->ndim == 1) {
+        out_shape[0] = 1;
+    } else {
+        int out_d = 0;
+        for(int d = 0; d < tensor->ndim; d++) {
+            if(d != dim) {
+                out_shape[out_d++] = tensor->shape[d];
+            }
+        }
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, out_shape, out_ndim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    int64_t axis_len = tensor->shape[dim];
+    for(int64_t out_i = 0; out_i < out->numel; out_i++) {
+        int64_t rem = out_i;
+        int64_t input_base = 0;
+
+        for(int d = tensor->ndim - 1; d >= 0; d--) {
+            if(d == dim) {
+                continue;
+            }
+
+            int64_t out_shape_d = tensor->shape[d];
+            int64_t coord = rem % out_shape_d;
+            rem /= out_shape_d;
+            input_base += coord * tensor->strides[d];
+        }
+
+        float mean = 0.0f;
+        for(int64_t i = 0; i < axis_len; i++) {
+            mean += tensor->data[input_base + i * tensor->strides[dim]];
+        }
+        mean /= (float)axis_len;
+
+        float var = 0.0f;
+        for(int64_t i = 0; i < axis_len; i++) {
+            float diff = tensor->data[input_base + i * tensor->strides[dim]] - mean;
+            var += diff * diff;
+        }
+        out->data[out_i] = var / (float)axis_len;
     }
 
     return out;

@@ -1,25 +1,15 @@
-- [x] work on the device backend system
 
-- [ ] prep the cuda kernel flow and prep their kernels for implementation
-
-- [ ] create a mimo 2.6 mini arch
-
-- [ ] pico_swa_matmul still just returns the main matmul function
-
-- [ ] Add more loss functions.
-  - MAE, BCE, and cross entropy are the first useful ones.
-
-- [ ] Add more optimizers.
-  - Momentum SGD and Adam first.
-
-- [ ] Add regularizers.
-  - Start with L2 / weight decay.
-
-- [ ] Add normalizers.
-  - Layer norm first; batch norm later if the module API is ready.
-
-- [ ] Add dropout.
-  - Depends on `train` / `eval` mode.
-
-- [ ] Add a simple `Sequential` / MLP-style module wrapper.
-  - Enough to build Linear -> activation -> Linear without boilerplate.
+  - [x] work on the device backend system
+  - [x] add RMSNorm.
+  - [x] add Adam and AdamW optimizer.
+  - [x] add dropout with train/eval behavior.
+  - [x] add SwiGLU-style FFN block.
+  - [x] add cross entropy loss for next-token prediction.
+  - [ ] finish local/global attention flow, including grouped attention where needed.
+  - [ ] pico_swa_matmul still just returns the main matmul function
+  - [ ] Add regularizers, start with L2 / weight decay.
+  - [ ] finish the cuda kernel flow for core ops: matmul, grouped matmul, elementwise ops, softmax, activations, and layout ops.
+  - [ ] build a tiny text dataset path: x tokens, y shifted-right tokens.
+  - [ ] add a simple Gemma-ish decoder block for text only, no MoE, no multimodal.
+  - [ ] make safetensors save reliable for the full model.
+  - [ ] train a small model, save it, and upload the checkpoint to Hugging Face.

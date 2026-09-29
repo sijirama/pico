@@ -28,6 +28,7 @@
 PICO_DEFINE_BINARY_SCALAR_OP(pico_add_cpu_scalar, a->data[ia] + b->data[ib])
 PICO_DEFINE_BINARY_SCALAR_OP(pico_sub_cpu_scalar, a->data[ia] - b->data[ib])
 PICO_DEFINE_BINARY_SCALAR_OP(pico_mul_cpu_scalar, a->data[ia] * b->data[ib])
+PICO_DEFINE_BINARY_SCALAR_OP(pico_div_cpu_scalar, a->data[ia] / b->data[ib])
 
 PICO_DEFINE_UNARY_SCALAR_OP(pico_sqrt_cpu_scalar, sqrtf)
 PICO_DEFINE_UNARY_SCALAR_OP(pico_sin_cpu_scalar, sin)

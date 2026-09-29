@@ -40,6 +40,16 @@ static inline void pico_mul_cpu(struct PicoTensor* a, struct PicoTensor* b, stru
     }
 }
 
+static inline void pico_div_cpu(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out) {
+    switch(g_simd_level) {
+        case SIMD_AVX2:
+            pico_div_cpu_avx2_fp32(a, b, out);
+            break;
+        default:
+            pico_div_cpu_scalar(a, b, out);
+    }
+}
+
 // unary element-wise math. same switch shape as above — ripe for the future
 // pico_op_cpu(a, out, op) bundling once there's more than one SIMD variant.
 

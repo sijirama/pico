@@ -140,6 +140,48 @@ struct PicoTensor *pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struc
     return out;
 }
 
+struct PicoTensor *pico_div(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
+    if(!pico_check_broadcast_compatibility(a, b)) {
+        fprintf(stderr, "[Pico] Error: Shapes are not broadcastable!\n");
+        return NULL;
+    }
+
+    if(!pico_require_same_backend(a, b, "div") || !pico_require_cpu_backend(a->backend, "div")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for div allocation\n");
+        return NULL;
+    }
+
+    int ndim = MAX(a->ndim, b->ndim);
+    int64_t *a_padded_shape = pad_shape(ctx, a, ndim);
+    int64_t *b_padded_shape = pad_shape(ctx, b, ndim);
+
+    int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
+    for(int i = 0; i < ndim; i++)
+        res_shape[i] = MAX(a_padded_shape[i], b_padded_shape[i]);
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, res_shape, ndim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    if(a->backend == PICO_BACKEND_CPU) {
+        pico_div_cpu(a, b, out);
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
+    out->parents[0] = a;
+    out->parents[1] = b;
+    out->num_parents = 2;
+    out->_backward = pico_div_backward;
+
+    return out;
+}
+
 struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
 
     bool is_2d_matmul = a->ndim == 2 && b->ndim == 2;

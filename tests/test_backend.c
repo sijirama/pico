@@ -260,6 +260,17 @@ UTEST(backend_ops, mul_rejects_cuda_cuda) {
     pico_shutdown(ctx);
 }
 
+UTEST(backend_ops, div_rejects_cuda_cuda) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2};
+    struct PicoTensor* a = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, (float[]){1, 2});
+    struct PicoTensor* b = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, (float[]){3, 4});
+
+    ASSERT_TRUE(pico_div(ctx, a, b) == NULL);
+
+    pico_shutdown(ctx);
+}
+
 UTEST(backend_ops, matmul_rejects_cuda_cuda) {
     struct PicoContext* ctx = pico_init_verbose(false);
     int64_t shape[] = {2, 2};
@@ -277,6 +288,17 @@ UTEST(backend_ops, relu_rejects_cuda) {
     struct PicoTensor* t = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, (float[]){-1, 2});
 
     ASSERT_TRUE(pico_relu(ctx, t) == NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(backend_ops, swiglu_rejects_cuda) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+    int64_t shape[] = {2};
+    struct PicoTensor* x = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, (float[]){-1, 2});
+    struct PicoTensor* gate = pico_tensor_from_data_on(ctx, PICO_BACKEND_CUDA, shape, 1, (float[]){3, 4});
+
+    ASSERT_TRUE(pico_swiglu(ctx, x, gate) == NULL);
 
     pico_shutdown(ctx);
 }

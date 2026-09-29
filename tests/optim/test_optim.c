@@ -1,5 +1,5 @@
 /*
- * Tests for the SGD optimizer.
+ * Tests for the optimizers.
  * NOTE: no UTEST_MAIN here, test_basic.c owns main + UTEST_STATE.
  * Values chosen to be exact in float (no 0.1-style rounding) so == is safe.
  */
@@ -89,5 +89,131 @@ UTEST(optim_sgd, step_multiple_params) {
     ASSERT_TRUE(w2->data[0] == 15.0f);  // 20 - 0.5*10
 
     pico_optim_sgd_free(opt);
+    pico_shutdown(ctx);
+}
+
+UTEST(optim_adam, init_sets_default_hyperparams) {
+    struct PicoOptimAdam* opt = pico_optim_adam_init(0.001f);
+
+    ASSERT_TRUE(opt != NULL);
+    ASSERT_NEAR(opt->lr, 0.001f, 1e-8f);
+    ASSERT_NEAR(opt->beta1, 0.9f, 1e-6f);
+    ASSERT_NEAR(opt->beta2, 0.999f, 1e-6f);
+    ASSERT_NEAR(opt->eps, 1e-8f, 1e-10f);
+    ASSERT_TRUE(opt->step == 0);
+
+    pico_optim_adam_free(opt);
+}
+
+UTEST(optim_adam, first_step_uses_bias_corrected_moments) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {2};
+    struct PicoTensor* w = pico_param(ctx, s, 1);
+    w->data[0] = 1.0f;
+    w->data[1] = -1.0f;
+    w->grad[0] = 0.5f;
+    w->grad[1] = -0.25f;
+
+    struct PicoOptimAdam* opt = pico_optim_adam_init(0.1f);
+    pico_optim_adam_step(ctx, opt);
+
+    ASSERT_TRUE(opt->step == 1);
+    ASSERT_TRUE(opt->param_count == 1);
+    ASSERT_TRUE(opt->params[0] == w);
+    ASSERT_NEAR(opt->m[0][0], 0.05f, 1e-6f);
+    ASSERT_NEAR(opt->v[0][0], 0.00025f, 1e-8f);
+    ASSERT_NEAR(w->data[0], 0.9f, 1e-5f);
+    ASSERT_NEAR(w->data[1], -0.9f, 1e-5f);
+
+    pico_optim_adam_free(opt);
+    pico_shutdown(ctx);
+}
+
+UTEST(optim_adam, second_step_reuses_state) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {1};
+    struct PicoTensor* w = pico_param(ctx, s, 1);
+    w->data[0] = 1.0f;
+    w->grad[0] = 1.0f;
+
+    struct PicoOptimAdam* opt = pico_optim_adam_init(0.1f);
+    pico_optim_adam_step(ctx, opt);
+    w->grad[0] = 1.0f;
+    pico_optim_adam_step(ctx, opt);
+
+    ASSERT_TRUE(opt->step == 2);
+    ASSERT_NEAR(opt->m[0][0], 0.19f, 1e-6f);
+    ASSERT_NEAR(w->data[0], 0.8f, 1e-5f);
+
+    pico_optim_adam_free(opt);
+    pico_shutdown(ctx);
+}
+
+UTEST(optim_adam, zero_grad_clears_registered_params) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {2};
+    struct PicoTensor* w = pico_param(ctx, s, 1);
+    w->grad[0] = 3.0f;
+    w->grad[1] = -2.0f;
+
+    struct PicoOptimAdam* opt = pico_optim_adam_init(0.1f);
+    pico_optim_adam_zero_grad(ctx, opt);
+
+    ASSERT_TRUE(w->grad[0] == 0.0f);
+    ASSERT_TRUE(w->grad[1] == 0.0f);
+
+    pico_optim_adam_free(opt);
+    pico_shutdown(ctx);
+}
+
+UTEST(optim_adamw, init_sets_default_hyperparams_and_weight_decay) {
+    struct PicoOptimAdamW* opt = pico_optim_adamw_init(0.001f, 0.01f);
+
+    ASSERT_TRUE(opt != NULL);
+    ASSERT_NEAR(opt->lr, 0.001f, 1e-8f);
+    ASSERT_NEAR(opt->beta1, 0.9f, 1e-6f);
+    ASSERT_NEAR(opt->beta2, 0.999f, 1e-6f);
+    ASSERT_NEAR(opt->eps, 1e-8f, 1e-10f);
+    ASSERT_NEAR(opt->weight_decay, 0.01f, 1e-8f);
+
+    pico_optim_adamw_free(opt);
+}
+
+UTEST(optim_adamw, first_step_applies_decoupled_weight_decay) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {1};
+    struct PicoTensor* w = pico_param(ctx, s, 1);
+    w->data[0] = 1.0f;
+    w->grad[0] = 0.5f;
+
+    struct PicoOptimAdamW* opt = pico_optim_adamw_init(0.1f, 0.01f);
+    pico_optim_adamw_step(ctx, opt);
+
+    ASSERT_TRUE(opt->step == 1);
+    ASSERT_NEAR(w->data[0], 0.899f, 1e-5f);
+
+    pico_optim_adamw_free(opt);
+    pico_shutdown(ctx);
+}
+
+UTEST(optim_adamw, zero_grad_clears_registered_params) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t s[] = {2};
+    struct PicoTensor* w = pico_param(ctx, s, 1);
+    w->grad[0] = 3.0f;
+    w->grad[1] = -2.0f;
+
+    struct PicoOptimAdamW* opt = pico_optim_adamw_init(0.1f, 0.01f);
+    pico_optim_adamw_zero_grad(ctx, opt);
+
+    ASSERT_TRUE(w->grad[0] == 0.0f);
+    ASSERT_TRUE(w->grad[1] == 0.0f);
+
+    pico_optim_adamw_free(opt);
     pico_shutdown(ctx);
 }
