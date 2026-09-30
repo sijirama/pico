@@ -2,8 +2,7 @@
 
 #include <cuda_runtime.h>
 
-__global__ void
-naive(const float *A, const float *B, float *C, int M, int N, int K) {
+__global__ void naive(const float *A, const float *B, float *C, int M, int N, int K) {
 
     int thready = blockIdx.y * blockDim.y + threadIdx.y;
     int threadx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -23,19 +22,11 @@ naive(const float *A, const float *B, float *C, int M, int N, int K) {
     C_current[thready * N + threadx] = sum;
 }
 
-void cuda_gemm_naive(
-    const float *A,
-    const float *B,
-    float *C,
-    int M,
-    int N,
-    int K,
-    int batch_count) {
+void cuda_gemm_naive(const float *A, const float *B, float *C, int M, int N, int K, int batch_count) {
 
     dim3 block(16, 16);
 
-    dim3 grid(
-        (N + block.x - 1) / block.x, (M + block.y - 1) / block.y, batch_count);
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y, batch_count);
 
     naive<<<grid, block>>>(A, B, C, M, N, K);
 }

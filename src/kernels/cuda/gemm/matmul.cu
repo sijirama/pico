@@ -1,7 +1,8 @@
 #include "../cuda_common.cuh"
 
-__global__ static void pico_cuda_matmul_kernel(const float* A, const float* B, float* C, int M, int N, int K,
-                                               int batch_count, int b_batch_count) {
+__global__ static void pico_cuda_matmul_kernel(const float* __restrict__ A, const float* __restrict__ B,
+                                               float* __restrict__ C, int M, int N, int K, int batch_count,
+                                               int b_batch_count) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int batch = blockIdx.z;
@@ -11,9 +12,9 @@ __global__ static void pico_cuda_matmul_kernel(const float* A, const float* B, f
     }
 
     int b_batch = b_batch_count == 1 ? 0 : batch;
-    const float* a = A + batch * M * K;
-    const float* b = B + b_batch * K * N;
-    float* c = C + batch * M * N;
+    const float* __restrict__ a = A + batch * M * K;
+    const float* __restrict__ b = B + b_batch * K * N;
+    float* __restrict__ c = C + batch * M * N;
 
     float acc = 0.0f;
     for(int k = 0; k < K; k++) {

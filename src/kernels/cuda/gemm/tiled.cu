@@ -4,8 +4,7 @@
 #include <cuda_runtime.h>
 #define TILE_WIDTH 16
 
-__global__ void
-tiled(const float *A, const float *B, float *C, int M, int N, int K) {
+__global__ void tiled(const float *A, const float *B, float *C, int M, int N, int K) {
 
     int thready = blockIdx.y * blockDim.y + threadIdx.y;
     int threadx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -40,17 +39,9 @@ tiled(const float *A, const float *B, float *C, int M, int N, int K) {
     C_current[thready * N + threadx] = sum;
 }
 
-void cuda_gemm_tiled(
-    const float *A,
-    const float *B,
-    float *C,
-    int M,
-    int N,
-    int K,
-    int batch_count) {
+void cuda_gemm_tiled(const float *A, const float *B, float *C, int M, int N, int K, int batch_count) {
 
     dim3 block(16, 16);
-    dim3 grid(
-        (N + block.x - 1) / block.x, (M + block.y - 1) / block.y, batch_count);
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y, batch_count);
     tiled<<<grid, block>>>(A, B, C, M, N, K);
 }

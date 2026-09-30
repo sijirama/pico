@@ -452,17 +452,69 @@ struct PicoTensor *pico_sum(struct PicoContext *ctx, struct PicoTensor *tensor, 
 }
 
 struct PicoTensor *pico_mean(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {
-    struct PicoTensor *out = pico_sum(ctx, tensor, dim);
-    if(out == NULL) {
+    if(ctx == NULL || tensor == NULL) {
         return NULL;
     }
 
-    float divisor = dim == -1 ? (float)tensor->numel : (float)tensor->shape[dim];
-    for(int64_t i = 0; i < out->numel; i++) {
-        out->data[i] /= divisor;
+    if(dim < -1 || dim >= tensor->ndim) {
+        fprintf(stderr, "mean dim is out of range\n");
+        return NULL;
     }
 
-    return out;
+    if(tensor->backend == PICO_BACKEND_CPU) {
+        struct PicoTensor *out = pico_sum(ctx, tensor, dim);
+        if(out == NULL) {
+            return NULL;
+        }
+
+        float divisor = dim == -1 ? (float)tensor->numel : (float)tensor->shape[dim];
+        for(int64_t i = 0; i < out->numel; i++) {
+            out->data[i] /= divisor;
+        }
+
+        return out;
+    } else if(tensor->backend == PICO_BACKEND_CUDA) {
+        struct Arena *arena = pico_context_arena(ctx);
+        if(arena == NULL) {
+            fprintf(stderr, "PicoArenaError: no arena available for mean allocation\n");
+            return NULL;
+        }
+
+        if(dim == -1) {
+            int64_t scalar_shape[1] = {1};
+            struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, scalar_shape, 1);
+            if(out == NULL || !pico_cuda_mean(tensor, out, dim)) {
+                return NULL;
+            }
+            return out;
+        }
+
+        uint8_t out_ndim = tensor->ndim == 1 ? 1 : tensor->ndim - 1;
+        int64_t *out_shape = arena_alloc(arena, sizeof(int64_t) * out_ndim);
+        if(out_shape == NULL) {
+            return NULL;
+        }
+
+        if(tensor->ndim == 1) {
+            out_shape[0] = 1;
+        } else {
+            int out_d = 0;
+            for(int d = 0; d < tensor->ndim; d++) {
+                if(d != dim) {
+                    out_shape[out_d++] = tensor->shape[d];
+                }
+            }
+        }
+
+        struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, out_shape, out_ndim);
+        if(out == NULL || !pico_cuda_mean(tensor, out, dim)) {
+            return NULL;
+        }
+        return out;
+    }
+
+    fprintf(stderr, "PicoBackendError: mean unknown backend\n");
+    return NULL;
 }
 
 struct PicoTensor *pico_var(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {

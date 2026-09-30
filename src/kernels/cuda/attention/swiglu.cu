@@ -6,7 +6,8 @@ __device__ static float pico_cuda_silu(float input) {
     return input / (1.0f + expf(-input));
 }
 
-__global__ static void pico_cuda_swiglu_kernel(const float* x, const float* gate, float* out, int64_t n) {
+__global__ static void pico_cuda_swiglu_kernel(const float* __restrict__ x, const float* __restrict__ gate,
+                                               float* __restrict__ out, int64_t n) {
     int64_t idx = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= n) {
         return;

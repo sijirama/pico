@@ -91,6 +91,7 @@ PICO_WEAK bool pico_cuda_div(struct PicoTensor *a, struct PicoTensor *b, struct 
     }
 
 PICO_DEFINE_CUDA_UNARY_STUB(sqrt)
+PICO_DEFINE_CUDA_UNARY_STUB(rsqrt)
 PICO_DEFINE_CUDA_UNARY_STUB(sin)
 PICO_DEFINE_CUDA_UNARY_STUB(cos)
 PICO_DEFINE_CUDA_UNARY_STUB(tan)
@@ -119,6 +120,13 @@ PICO_WEAK bool pico_cuda_softmax(struct PicoTensor *input, struct PicoTensor *ou
     (void)out;
     (void)dim;
     return pico_cuda_stub_missing("softmax");
+}
+
+PICO_WEAK bool pico_cuda_mean(struct PicoTensor *input, struct PicoTensor *out, int dim) {
+    (void)input;
+    (void)out;
+    (void)dim;
+    return pico_cuda_stub_missing("mean");
 }
 
 PICO_WEAK bool pico_cuda_rmsnorm(struct PicoTensor *input, struct PicoTensor *weight, struct PicoTensor *out, float eps) {

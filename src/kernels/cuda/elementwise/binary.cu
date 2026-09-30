@@ -3,10 +3,14 @@
 #include <stdlib.h>
 
 #define PICO_DEFINE_CUDA_BINARY_KERNEL(name, expr)                                                             \
-__global__ static void pico_cuda_##name##_kernel(const float* a, const float* b, float* out,                  \
-                                                 const int64_t* a_shape, const int64_t* b_shape,              \
-                                                 const int64_t* a_strides, const int64_t* b_strides,          \
-                                                 const int64_t* out_strides, int ndim, int64_t n) {           \
+__global__ static void pico_cuda_##name##_kernel(const float* __restrict__ a, const float* __restrict__ b,    \
+                                                 float* __restrict__ out,                                     \
+                                                 const int64_t* __restrict__ a_shape,                         \
+                                                 const int64_t* __restrict__ b_shape,                         \
+                                                 const int64_t* __restrict__ a_strides,                       \
+                                                 const int64_t* __restrict__ b_strides,                       \
+                                                 const int64_t* __restrict__ out_strides,                     \
+                                                 int ndim, int64_t n) {                                       \
     int64_t i = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;                                               \
     if(i >= n) {                                                                                              \
         return;                                                                                               \
@@ -32,8 +36,10 @@ PICO_DEFINE_CUDA_BINARY_KERNEL(sub, a[a_offset] - b[b_offset])
 PICO_DEFINE_CUDA_BINARY_KERNEL(mul, a[a_offset] * b[b_offset])
 PICO_DEFINE_CUDA_BINARY_KERNEL(div, a[a_offset] / b[b_offset])
 
-typedef void (*PicoCudaBinaryKernel)(const float*, const float*, float*, const int64_t*, const int64_t*,
-                                     const int64_t*, const int64_t*, const int64_t*, int, int64_t);
+typedef void (*PicoCudaBinaryKernel)(const float* __restrict__, const float* __restrict__, float* __restrict__,
+                                     const int64_t* __restrict__, const int64_t* __restrict__,
+                                     const int64_t* __restrict__, const int64_t* __restrict__,
+                                     const int64_t* __restrict__, int, int64_t);
 
 static bool pico_cuda_binary(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out,
                              PicoCudaBinaryKernel kernel, const char* name) {

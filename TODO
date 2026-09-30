@@ -1,4 +1,17 @@
 
+  cuda kernels needed for tinystories transformer training:
+  - [x] cuda device allocation and explicit cpu/cuda transfer flow.
+  - [x] cuda elementwise ops: add, sub, mul, div, sqrt, log, relu, sigmoid, etc.
+  - [x] cuda matmul, softmax, and swiglu.
+  - [x] cuda embedding lookup for token ids -> token vectors.
+  - [ ] cuda rmsnorm forward for transformer blocks.
+  - [ ] cuda grouped matmul for gqa q heads -> shared kv heads.
+  - [ ] cuda causal and sliding-window attention mask application.
+  - [ ] cuda dropout forward/backward for ffn regularization.
+  - [ ] cuda cross entropy loss for next-token prediction.
+  - [ ] cuda adamw parameter update and zero_grad path.
+  - [ ] keep tensors on cuda across the full train step, transfer back only for save/debug.
+
   - [x] work on the device backend system
   - [x] add RMSNorm.
   - [x] add Adam and AdamW optimizer.

@@ -2,9 +2,10 @@
 
 #include <math.h>
 
-__global__ static void pico_cuda_softmax_dim_kernel(const float* input, float* output,
-                                                    const int64_t* shape, const int64_t* in_strides,
-                                                    const int64_t* out_strides, int ndim, int dim,
+__global__ static void pico_cuda_softmax_dim_kernel(const float* __restrict__ input, float* __restrict__ output,
+                                                    const int64_t* __restrict__ shape,
+                                                    const int64_t* __restrict__ in_strides,
+                                                    const int64_t* __restrict__ out_strides, int ndim, int dim,
                                                     int64_t axis_len, int64_t slice_count) {
     int64_t slice = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
     if(slice >= slice_count) {

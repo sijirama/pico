@@ -3,7 +3,7 @@
 #include <math.h>
 
 #define PICO_DEFINE_CUDA_UNARY_OP(name, expr)                                      \
-__global__ static void pico_cuda_##name##_kernel(const float* input, float* output, int64_t n) { \
+__global__ static void pico_cuda_##name##_kernel(const float* __restrict__ input, float* __restrict__ output, int64_t n) { \
     int64_t idx = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;                  \
     if(idx >= n) {                                                                 \
         return;                                                                    \
@@ -22,6 +22,7 @@ extern "C" bool pico_cuda_##name(struct PicoTensor* a, struct PicoTensor* out) {
 }
 
 PICO_DEFINE_CUDA_UNARY_OP(sqrt, sqrtf(x))
+PICO_DEFINE_CUDA_UNARY_OP(rsqrt, rsqrtf(x))
 PICO_DEFINE_CUDA_UNARY_OP(sin, sinf(x))
 PICO_DEFINE_CUDA_UNARY_OP(cos, cosf(x))
 PICO_DEFINE_CUDA_UNARY_OP(tan, tanf(x))

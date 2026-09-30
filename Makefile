@@ -30,6 +30,7 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/cuda_backend.cu \
 	$(SRC_DIR)/kernels/cuda/cuda_ops.cu \
 	$(SRC_DIR)/kernels/cuda/memory.cu \
+	$(SRC_DIR)/kernels/cuda/common/reduction.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/binary.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/unary.cu \
 	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
