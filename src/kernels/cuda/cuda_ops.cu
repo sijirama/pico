@@ -8,12 +8,6 @@ extern "C" bool pico_cuda_grouped_matmul(struct PicoTensor* a, struct PicoTensor
     return false;
 }
 
-extern "C" bool pico_cuda_rmsnorm(struct PicoTensor* input, struct PicoTensor* weight, struct PicoTensor* out, float eps) {
-    (void)input; (void)weight; (void)out; (void)eps;
-    fprintf(stderr, "PicoCudaError: rmsnorm CUDA kernel is not implemented yet\n");
-    return false;
-}
-
 extern "C" bool pico_cuda_embedding(struct PicoTensor* table, struct PicoTensor* input_indices, struct PicoTensor* out) {
     (void)table; (void)input_indices; (void)out;
     fprintf(stderr, "PicoCudaError: embedding CUDA kernel is not implemented yet\n");
