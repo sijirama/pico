@@ -118,6 +118,44 @@ static inline void pico_dropout_backward(struct PicoTensor* self) {
     }
 }
 
+static inline void pico_softmax_backward(struct PicoTensor* self) {
+    struct PicoTensor* input = self->parents[0];
+    int dim = (int)self->op_param;
+    int ndim = self->ndim;
+    int64_t axis_len = self->shape[dim];
+    int64_t slice_count = self->numel / axis_len;
+
+    for(int64_t slice_i = 0; slice_i < slice_count; slice_i++) {
+        int64_t rem = slice_i;
+        int64_t input_base = 0;
+        int64_t output_base = 0;
+
+        for(int d = ndim - 1; d >= 0; d--) {
+            if(d == dim) {
+                continue;
+            }
+
+            int64_t coord = rem % self->shape[d];
+            rem /= self->shape[d];
+            input_base += coord * input->strides[d];
+            output_base += coord * self->strides[d];
+        }
+
+        float dot = 0.0f;
+        for(int64_t i = 0; i < axis_len; i++) {
+            int64_t output_idx = output_base + i * self->strides[dim];
+            dot += self->grad[output_idx] * self->data[output_idx];
+        }
+
+        for(int64_t i = 0; i < axis_len; i++) {
+            int64_t output_idx = output_base + i * self->strides[dim];
+            int64_t input_idx = input_base + i * input->strides[dim];
+            float softmax_value = self->data[output_idx];
+            input->grad[input_idx] += softmax_value * (self->grad[output_idx] - dot);
+        }
+    }
+}
+
 // C = A·B   ->   dA = dC·Bᵀ ,  dB = Aᵀ·dC   (dC = self->grad)
 // two matmul-style triple loops; transpose is baked into the index order.
 static inline void pico_matmul_backward(struct PicoTensor* self) {

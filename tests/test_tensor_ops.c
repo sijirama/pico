@@ -312,6 +312,91 @@ UTEST(tensor_ops_softmax, reads_permuted_tensor_layout) {
     pico_shutdown(ctx);
 }
 
+UTEST(tensor_ops_softmax, wires_graph_and_stores_dim) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {1.0f, 2.0f, 3.0f, 1.0f, 1.0f, 1.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_softmax(ctx, tensor, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->num_parents, 1);
+    ASSERT_TRUE(out->parents[0] == tensor);
+    ASSERT_TRUE(out->_backward != NULL);
+    ASSERT_TRUE(out->op_param == 1);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_softmax, backward_vector_uses_full_jacobian) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {3};
+    float values[] = {1.0f, 2.0f, 3.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_softmax(ctx, tensor, 0);
+    out->grad[0] = 1.0f;
+    out->grad[1] = 0.0f;
+    out->grad[2] = 0.0f;
+    out->_backward(out);
+
+    ASSERT_NEAR(tensor->grad[0], 0.08192507f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[1], -0.02203304f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[2], -0.05989202f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_softmax, backward_row_wise_dim_1) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {2, 3};
+    float values[] = {
+        1.0f, 2.0f, 3.0f,
+        1.0f, 1.0f, 1.0f,
+    };
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 2, values);
+
+    struct PicoTensor* out = pico_softmax(ctx, tensor, 1);
+    out->grad[0] = 1.0f;
+    out->grad[1] = 0.0f;
+    out->grad[2] = 0.0f;
+    out->grad[3] = 0.0f;
+    out->grad[4] = 1.0f;
+    out->grad[5] = 0.0f;
+    out->_backward(out);
+
+    ASSERT_NEAR(tensor->grad[0], 0.08192507f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[1], -0.02203304f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[2], -0.05989202f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[3], -0.11111111f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[4], 0.22222222f, 1e-5f);
+    ASSERT_NEAR(tensor->grad[5], -0.11111111f, 1e-5f);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(tensor_ops_softmax, through_pico_backward) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t shape[] = {3};
+    float values[] = {1.0f, 2.0f, 3.0f};
+    struct PicoTensor* tensor = pico_tensor_from_data(ctx, shape, 1, values);
+
+    struct PicoTensor* out = pico_softmax(ctx, tensor, 0);
+    pico_backward(ctx, out);
+
+    // d(sum(softmax(x)))/dx = 0, and pico_backward seeds every output grad to 1.
+    ASSERT_NEAR(tensor->grad[0], 0.0f, 1e-6f);
+    ASSERT_NEAR(tensor->grad[1], 0.0f, 1e-6f);
+    ASSERT_NEAR(tensor->grad[2], 0.0f, 1e-6f);
+
+    pico_shutdown(ctx);
+}
+
 UTEST(tensor_ops_sum, reduces_entire_tensor_with_dim_minus_one) {
     struct PicoContext* ctx = pico_init_verbose(false);
 

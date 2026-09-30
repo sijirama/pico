@@ -304,6 +304,12 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
         return NULL;
     }
 
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for softmax graph allocation\n");
+        return NULL;
+    }
+
     int ndim = tensor->ndim;
     int64_t axis_len = tensor->shape[dim];
     int64_t slice_count = tensor->numel / axis_len;
@@ -343,6 +349,15 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
             out->data[output_base + i * out->strides[dim]] /= sum;
         }
     }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
+    if(out->parents == NULL) {
+        return NULL;
+    }
+    out->parents[0] = tensor;
+    out->num_parents = 1;
+    out->op_param = dim;
+    out->_backward = pico_softmax_backward;
 
     return out;
 }
