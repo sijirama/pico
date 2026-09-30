@@ -32,3 +32,4 @@ Thumbs.db
 study_list.md
 *.safetensor
 *.safetensors
+datasets/
