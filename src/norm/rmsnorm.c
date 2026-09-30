@@ -8,6 +8,7 @@
 #include "../arena.h"
 #include "../ctx.h"
 #include "../devices/backend.h"
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 
 static void pico_rmsnorm_backward(struct PicoTensor* self) {
@@ -107,8 +108,7 @@ struct PicoTensor* pico_nn_rmsnorm_forward(struct PicoContext* ctx, struct PicoR
         return NULL;
     }
 
-    if(!pico_require_same_backend(input, norm->weight, "rmsnorm") ||
-       !pico_require_cpu_backend(input->backend, "rmsnorm")) {
+    if(!pico_require_same_backend(input, norm->weight, "rmsnorm")) {
         return NULL;
     }
 
@@ -124,23 +124,32 @@ struct PicoTensor* pico_nn_rmsnorm_forward(struct PicoContext* ctx, struct PicoR
         return NULL;
     }
 
-    int D = norm->normalized_dim;
-    int64_t rows = input->numel / D;
+    if(input->backend == PICO_BACKEND_CPU) {
+        int D = norm->normalized_dim;
+        int64_t rows = input->numel / D;
 
-    for(int64_t row = 0; row < rows; row++) {
-        int64_t base = row * D;
-        float mean_sq = 0.0f;
-        for(int d = 0; d < D; d++) {
-            float x = input->data[base + d];
-            mean_sq += x * x;
+        for(int64_t row = 0; row < rows; row++) {
+            int64_t base = row * D;
+            float mean_sq = 0.0f;
+            for(int d = 0; d < D; d++) {
+                float x = input->data[base + d];
+                mean_sq += x * x;
+            }
+
+            mean_sq /= (float)D;
+            float inv_rms = 1.0f / sqrtf(mean_sq + norm->eps);
+
+            for(int d = 0; d < D; d++) {
+                out->data[base + d] = input->data[base + d] * inv_rms * norm->weight->data[d];
+            }
         }
-
-        mean_sq /= (float)D;
-        float inv_rms = 1.0f / sqrtf(mean_sq + norm->eps);
-
-        for(int d = 0; d < D; d++) {
-            out->data[base + d] = input->data[base + d] * inv_rms * norm->weight->data[d];
+    } else if(input->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_rmsnorm(input, norm->weight, out, norm->eps)) {
+            return NULL;
         }
+    } else {
+        fprintf(stderr, "PicoBackendError: rmsnorm unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*) * 3);

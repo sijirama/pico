@@ -9,6 +9,7 @@
 #include "arena.h"
 #include "autograd.h"
 #include "ctx.h"
+#include "kernels/cuda/cuda_ops.h"
 #include "tensor.h"
 
 void pico_transpose_2d(struct PicoTensor *tensor) {
@@ -295,10 +296,6 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
         return NULL;
     }
 
-    if(!pico_require_cpu_backend(tensor->backend, "softmax")) {
-        return NULL;
-    }
-
     struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, tensor->shape, tensor->ndim);
     if(out == NULL) {
         return NULL;
@@ -310,44 +307,53 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
         return NULL;
     }
 
-    int ndim = tensor->ndim;
-    int64_t axis_len = tensor->shape[dim];
-    int64_t slice_count = tensor->numel / axis_len;
+    if(tensor->backend == PICO_BACKEND_CPU) {
+        int ndim = tensor->ndim;
+        int64_t axis_len = tensor->shape[dim];
+        int64_t slice_count = tensor->numel / axis_len;
 
-    for(int64_t slice_i = 0; slice_i < slice_count; slice_i++) {
-        int64_t rem = slice_i;
-        int64_t input_base = 0;
-        int64_t output_base = 0;
+        for(int64_t slice_i = 0; slice_i < slice_count; slice_i++) {
+            int64_t rem = slice_i;
+            int64_t input_base = 0;
+            int64_t output_base = 0;
 
-        for(int d = ndim - 1; d >= 0; d--) {
-            if(d == dim) {
-                continue;
+            for(int d = ndim - 1; d >= 0; d--) {
+                if(d == dim) {
+                    continue;
+                }
+
+                int64_t coord = rem % tensor->shape[d];
+                rem /= tensor->shape[d];
+                input_base += coord * tensor->strides[d];
+                output_base += coord * out->strides[d];
             }
 
-            int64_t coord = rem % tensor->shape[d];
-            rem /= tensor->shape[d];
-            input_base += coord * tensor->strides[d];
-            output_base += coord * out->strides[d];
-        }
+            float max_value = tensor->data[input_base];
+            for(int64_t i = 1; i < axis_len; i++) {
+                float value = tensor->data[input_base + i * tensor->strides[dim]];
+                if(value > max_value) {
+                    max_value = value;
+                }
+            }
 
-        float max_value = tensor->data[input_base];
-        for(int64_t i = 1; i < axis_len; i++) {
-            float value = tensor->data[input_base + i * tensor->strides[dim]];
-            if(value > max_value) {
-                max_value = value;
+            float sum = 0.0f;
+            for(int64_t i = 0; i < axis_len; i++) {
+                float value = expf(tensor->data[input_base + i * tensor->strides[dim]] - max_value);
+                out->data[output_base + i * out->strides[dim]] = value;
+                sum += value;
+            }
+
+            for(int64_t i = 0; i < axis_len; i++) {
+                out->data[output_base + i * out->strides[dim]] /= sum;
             }
         }
-
-        float sum = 0.0f;
-        for(int64_t i = 0; i < axis_len; i++) {
-            float value = expf(tensor->data[input_base + i * tensor->strides[dim]] - max_value);
-            out->data[output_base + i * out->strides[dim]] = value;
-            sum += value;
+    } else if(tensor->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_softmax(tensor, out, dim)) {
+            return NULL;
         }
-
-        for(int64_t i = 0; i < axis_len; i++) {
-            out->data[output_base + i * out->strides[dim]] /= sum;
-        }
+    } else {
+        fprintf(stderr, "PicoBackendError: softmax unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));

@@ -4,6 +4,7 @@
 
 #include "../arena.h"
 #include "../ctx.h"
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 
 struct PicoEmbedding {
@@ -59,10 +60,6 @@ static inline struct PicoTensor *pico_embedding_apply(
         return NULL;
     }
 
-    if(!pico_require_cpu_backend(input_indices->backend, "embedding")) {
-        return NULL;
-    }
-
     int ndim = 2;
     int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
     res_shape[0] = input_indices->shape[0];
@@ -70,21 +67,30 @@ static inline struct PicoTensor *pico_embedding_apply(
 
     struct PicoTensor *out = pico_create_tensor_on(ctx, input_indices->backend, res_shape, ndim);
 
-    // For each index in input_indices, copy the corresponding embedding vector from
-    // embedding->table
-    for(int64_t i = 0; i < input_indices->shape[0]; i++) {
-        int64_t idx = (int64_t)input_indices->data[i]; // for each index in the input_indices
-        if(idx < 0 || idx >= embedding->num_embeddings) {
-            fprintf(stderr, "PicoEmbeddingError: index %ld out of range\n", idx);
+    if(input_indices->backend == PICO_BACKEND_CPU) {
+        // For each index in input_indices, copy the corresponding embedding vector from
+        // embedding->table
+        for(int64_t i = 0; i < input_indices->shape[0]; i++) {
+            int64_t idx = (int64_t)input_indices->data[i]; // for each index in the input_indices
+            if(idx < 0 || idx >= embedding->num_embeddings) {
+                fprintf(stderr, "PicoEmbeddingError: index %ld out of range\n", idx);
+                return NULL;
+            }
+            float *src = (float *)embedding->table->data +
+                         idx * embedding->embedding_dim; // get the row of the index in table
+            float *dst = (float *)out->data +
+                         i * embedding->embedding_dim; // get the row of index in the out tensor
+            for(int j = 0; j < embedding->embedding_dim; j++) { // drop every embed dim from src to dest
+                dst[j] = src[j];
+            }
+        }
+    } else if(input_indices->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_embedding(embedding->table, input_indices, out)) {
             return NULL;
         }
-        float *src = (float *)embedding->table->data +
-                     idx * embedding->embedding_dim; // get the row of the index in table
-        float *dst = (float *)out->data +
-                     i * embedding->embedding_dim; // get the row of index in the out tensor
-        for(int j = 0; j < embedding->embedding_dim; j++) { // drop every embed dim from src to dest
-            dst[j] = src[j];
-        }
+    } else {
+        fprintf(stderr, "PicoBackendError: embedding unknown backend\n");
+        return NULL;
     }
 
     // Set the parent tensor for autograd

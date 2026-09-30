@@ -5,6 +5,7 @@
 
 #include "../arena.h"
 #include "../ctx.h"
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 
 const char* pico_backend_name(PicoBackend backend) {
@@ -52,10 +53,7 @@ bool pico_tensor_init_data_on(struct PicoContext* ctx, struct PicoTensor* tensor
     }
 
     if(backend == PICO_BACKEND_CUDA) {
-        // INFO: temporary cuda path. real cuda alloc will live here later.
-        // for now this only marks the tensor as device-backed so cpu ops reject it.
-        tensor->backend = PICO_BACKEND_CUDA;
-        return true;
+        return pico_cuda_tensor_alloc(ctx, tensor);
     }
 
     if(backend != PICO_BACKEND_CPU) {
@@ -92,10 +90,7 @@ bool pico_tensor_to_backend(struct PicoContext* ctx, struct PicoTensor* tensor, 
     }
 
     if(backend == PICO_BACKEND_CUDA) {
-        // INFO: fake transfer until cuda memory exists. keep the current pointers
-        // around, but mark the tensor so cpu kernels will refuse to run on it.
-        tensor->backend = PICO_BACKEND_CUDA;
-        return true;
+        return pico_cuda_tensor_to_cuda(ctx, tensor);
     }
 
     if(backend != PICO_BACKEND_CPU) {
@@ -112,6 +107,10 @@ bool pico_tensor_to_backend(struct PicoContext* ctx, struct PicoTensor* tensor, 
         tensor->data = old_data;
         tensor->grad = old_grad;
         return false;
+    }
+
+    if(old_backend == PICO_BACKEND_CUDA) {
+        return pico_cuda_tensor_to_cpu(ctx, tensor, old_data, old_grad);
     }
 
     if(old_data != NULL) {

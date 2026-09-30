@@ -1,6 +1,8 @@
 CC = gcc
+NVCC = nvcc
 AR = ar
 CFLAGS = -std=c11 -I src -g -Wall -pthread -fopenmp
+CUDAFLAGS = -std=c++17 -I src -g
 LDFLAGS = -lm -pthread -fopenmp
 CJSON_LIBS = -lcjson
 
@@ -14,6 +16,7 @@ TARGET = pico
 TEST_TARGET = test_pico
 ASAN_TARGET = test_pico_asan
 STATIC_LIB = $(LIB_DIR)/libpico.a
+STATIC_CUDA_LIB = $(LIB_DIR)/libpico_cuda.a
 
 # AddressSanitizer: detects leaks, use-after-free, double-free, overflows.
 # Slower + more memory, so it's a separate dev-only target (never shipped).
@@ -23,6 +26,16 @@ ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 # SRCS = $(filter-out $(SRC_DIR)/main.c, $(wildcard $(SRC_DIR)/*.c))
 SRCS = $(filter-out $(SRC_DIR)/main.c, $(shell find $(SRC_DIR) -name '*.c'))
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
+CUDA_SRCS = \
+	$(SRC_DIR)/kernels/cuda/cuda_backend.cu \
+	$(SRC_DIR)/kernels/cuda/cuda_ops.cu \
+	$(SRC_DIR)/kernels/cuda/memory.cu \
+	$(SRC_DIR)/kernels/cuda/elementwise/binary.cu \
+	$(SRC_DIR)/kernels/cuda/elementwise/unary.cu \
+	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
+	$(SRC_DIR)/kernels/cuda/attention/softmax.cu \
+	$(SRC_DIR)/kernels/cuda/attention/swiglu.cu
+CUDA_OBJS = $(patsubst $(SRC_DIR)/%.cu, $(OBJ_DIR)/%.cu.o, $(CUDA_SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o
 
 # Test files (recursively find all .c under tests/, incl. tests/lib/ etc.)
@@ -41,6 +54,8 @@ all: $(TARGET)
 
 lib: $(STATIC_LIB)
 
+lib-cuda: $(STATIC_CUDA_LIB)
+
 $(TARGET): $(OBJS) $(MAIN_OBJ)
 	@echo "Linking $@..."
 	@$(CC) $^ -o $@ $(LDFLAGS) $(CJSON_LIBS)
@@ -51,10 +66,21 @@ $(STATIC_LIB): $(OBJS)
 	@$(AR) rcs $@ $^
 	@echo "Archive ready: $@"
 
+$(STATIC_CUDA_LIB): $(OBJS) $(CUDA_OBJS)
+	@echo "Archiving $@..."
+	@mkdir -p $(LIB_DIR)
+	@$(AR) rcs $@ $^
+	@echo "CUDA archive ready: $@"
+
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling $<..."
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+$(OBJ_DIR)/%.cu.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
+	@echo "Compiling CUDA $<..."
+	@mkdir -p $(dir $@)
+	@$(NVCC) $(CUDAFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/test_%.o: %.c | $(OBJ_DIR)
 	@echo "Compiling test $<..."
@@ -94,4 +120,4 @@ rebuild: clean all
 # pull in the auto-generated header deps (silent if they don't exist yet)
 -include $(DEPS)
 
-.PHONY: all lib test run clean rebuild asan
+.PHONY: all lib lib-cuda test run clean rebuild asan

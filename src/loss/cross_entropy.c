@@ -5,6 +5,7 @@
 #include "../arena.h"
 #include "../ctx.h"
 #include "../devices/backend.h"
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 #include "autograd.h"
 #include "loss.h"
@@ -132,16 +133,12 @@ struct PicoTensor *pico_cross_entropy_loss(
         return NULL;
     }
 
-    if(!pico_require_cpu_backend(logits->backend, "cross_entropy_loss")) {
-        return NULL;
-    }
-
     if(!pico_cross_entropy_shapes_are_valid(logits, targets)) {
         fprintf(stderr, "[Pico] Error: cross entropy expects logits [..., classes] and targets [...]\n");
         return NULL;
     }
 
-    if(!pico_cross_entropy_targets_are_valid(logits, targets)) {
+    if(logits->backend == PICO_BACKEND_CPU && !pico_cross_entropy_targets_are_valid(logits, targets)) {
         fprintf(stderr, "[Pico] Error: cross entropy targets must be integer class ids in range\n");
         return NULL;
     }
@@ -158,7 +155,16 @@ struct PicoTensor *pico_cross_entropy_loss(
         return NULL;
     }
 
-    pico_cross_entropy_forward(out, logits, targets, ce->reduction);
+    if(logits->backend == PICO_BACKEND_CPU) {
+        pico_cross_entropy_forward(out, logits, targets, ce->reduction);
+    } else if(logits->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_cross_entropy(logits, targets, out, ce->reduction)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: cross_entropy_loss unknown backend\n");
+        return NULL;
+    }
     out->_backward = pico_cross_entropy_loss_backward;
     out->op_param = ce->reduction;
 

@@ -4,13 +4,10 @@
 #include "arena.h"
 #include "act_autograd.h"
 #include "ctx.h"
+#include "kernels/cuda/cuda_ops.h"
 #include "tensor.h"
 
 struct PicoTensor* pico_relu(struct PicoContext* ctx, struct PicoTensor* x) {
-    if(!pico_require_cpu_backend(x->backend, "relu")) {
-        return NULL;
-    }
-
     struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for relu allocation\n");
@@ -18,8 +15,17 @@ struct PicoTensor* pico_relu(struct PicoContext* ctx, struct PicoTensor* x) {
     }
     struct PicoTensor* out = pico_create_tensor_on(ctx, x->backend, x->shape, x->ndim);
 
-    for(int i = 0; i < x->numel; i++) {
-        out->data[i] = MAX(x->data[i], 0);
+    if(x->backend == PICO_BACKEND_CPU) {
+        for(int i = 0; i < x->numel; i++) {
+            out->data[i] = MAX(x->data[i], 0);
+        }
+    } else if(x->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_relu(x, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: relu unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
@@ -31,10 +37,6 @@ struct PicoTensor* pico_relu(struct PicoContext* ctx, struct PicoTensor* x) {
 }
 
 struct PicoTensor* pico_sigmoid(struct PicoContext* ctx, struct PicoTensor* x) {
-    if(!pico_require_cpu_backend(x->backend, "sigmoid")) {
-        return NULL;
-    }
-
     struct Arena* arena = pico_context_arena(ctx);
     if(arena == NULL) {
         fprintf(stderr, "PicoArenaError: no arena available for sigmoid allocation\n");
@@ -42,8 +44,17 @@ struct PicoTensor* pico_sigmoid(struct PicoContext* ctx, struct PicoTensor* x) {
     }
     struct PicoTensor* out = pico_create_tensor_on(ctx, x->backend, x->shape, x->ndim);
 
-    for(int i = 0; i < x->numel; i++) {
-        out->data[i] = sigmoid(x->data[i]);
+    if(x->backend == PICO_BACKEND_CPU) {
+        for(int i = 0; i < x->numel; i++) {
+            out->data[i] = sigmoid(x->data[i]);
+        }
+    } else if(x->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_sigmoid(x, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: sigmoid unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*));
@@ -59,7 +70,7 @@ struct PicoTensor* pico_swiglu(struct PicoContext* ctx, struct PicoTensor* x, st
         return NULL;
     }
 
-    if(!pico_require_same_backend(x, gate, "swiglu") || !pico_require_cpu_backend(x->backend, "swiglu")) {
+    if(!pico_require_same_backend(x, gate, "swiglu")) {
         return NULL;
     }
 
@@ -79,8 +90,17 @@ struct PicoTensor* pico_swiglu(struct PicoContext* ctx, struct PicoTensor* x, st
         return NULL;
     }
 
-    for(int64_t i = 0; i < x->numel; i++) {
-        out->data[i] = silu(x->data[i]) * gate->data[i];
+    if(x->backend == PICO_BACKEND_CPU) {
+        for(int64_t i = 0; i < x->numel; i++) {
+            out->data[i] = silu(x->data[i]) * gate->data[i];
+        }
+    } else if(x->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_swiglu(x, gate, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: swiglu unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor*) * 2);

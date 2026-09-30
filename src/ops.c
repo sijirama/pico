@@ -9,6 +9,7 @@
 #include "devices/backend.h"
 #include "global.h"
 #include "kernels/cpu/cpu_kernels.h"
+#include "kernels/cuda/cuda_ops.h"
 #include "tensor.h"
 
 struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b) {
@@ -17,7 +18,7 @@ struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struc
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "add") || !pico_require_cpu_backend(a->backend, "add")) {
+    if(!pico_require_same_backend(a, b, "add")) {
         return NULL;
     }
 
@@ -42,6 +43,13 @@ struct PicoTensor *pico_add(struct PicoContext *ctx, struct PicoTensor *a, struc
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_add_cpu(a, b, out);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_add(a, b, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: add unknown backend\n");
+        return NULL;
     }
 
     // stuff we need for backprop
@@ -60,7 +68,7 @@ struct PicoTensor *pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struc
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "sub") || !pico_require_cpu_backend(a->backend, "sub")) {
+    if(!pico_require_same_backend(a, b, "sub")) {
         return NULL;
     }
 
@@ -85,6 +93,13 @@ struct PicoTensor *pico_sub(struct PicoContext *ctx, struct PicoTensor *a, struc
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_sub_cpu(a, b, out);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_sub(a, b, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: sub unknown backend\n");
+        return NULL;
     }
 
     // stuff we need for backprop
@@ -103,7 +118,7 @@ struct PicoTensor *pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struc
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "mul") || !pico_require_cpu_backend(a->backend, "mul")) {
+    if(!pico_require_same_backend(a, b, "mul")) {
         return NULL;
     }
 
@@ -128,6 +143,13 @@ struct PicoTensor *pico_mul(struct PicoContext *ctx, struct PicoTensor *a, struc
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_mul_cpu(a, b, out);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_mul(a, b, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: mul unknown backend\n");
+        return NULL;
     }
 
     // stuff we need for backprop
@@ -146,7 +168,7 @@ struct PicoTensor *pico_div(struct PicoContext *ctx, struct PicoTensor *a, struc
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "div") || !pico_require_cpu_backend(a->backend, "div")) {
+    if(!pico_require_same_backend(a, b, "div")) {
         return NULL;
     }
 
@@ -171,6 +193,13 @@ struct PicoTensor *pico_div(struct PicoContext *ctx, struct PicoTensor *a, struc
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_div_cpu(a, b, out);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_div(a, b, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: div unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
@@ -214,7 +243,7 @@ struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, st
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "matmul") || !pico_require_cpu_backend(a->backend, "matmul")) {
+    if(!pico_require_same_backend(a, b, "matmul")) {
         return NULL;
     }
 
@@ -254,6 +283,13 @@ struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, st
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_matmul_cpu(a, b, out);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_matmul(a, b, out)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: matmul unknown backend\n");
+        return NULL;
     }
 
     // stuff we need for backprop
@@ -297,8 +333,7 @@ struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTenso
         return NULL;
     }
 
-    if(!pico_require_same_backend(a, b, "grouped_matmul") ||
-       !pico_require_cpu_backend(a->backend, "grouped_matmul")) {
+    if(!pico_require_same_backend(a, b, "grouped_matmul")) {
         return NULL;
     }
 
@@ -325,6 +360,13 @@ struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTenso
 
     if(a->backend == PICO_BACKEND_CPU) {
         pico_grouped_matmul_cpu(a, b, out, group_size);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_grouped_matmul(a, b, out, group_size)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: grouped_matmul unknown backend\n");
+        return NULL;
     }
 
     out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
@@ -342,170 +384,37 @@ struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTenso
 // the graph stays intact. unary => num_parents == 1. these are near-identical:
 // prime for a later bundle.
 
-struct PicoTensor *pico_sqrt(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "sqrt")) {
-        return NULL;
+#define PICO_DEFINE_UNARY_OP(name)                                                       \
+    struct PicoTensor *pico_##name(struct PicoContext *ctx, struct PicoTensor *a) {       \
+        struct Arena *arena = pico_context_arena(ctx);                                    \
+        if(arena == NULL) {                                                              \
+            fprintf(stderr, "PicoArenaError: no arena available for " #name " allocation\n"); \
+            return NULL;                                                                 \
+        }                                                                                \
+        struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim); \
+        if(out == NULL) {                                                                \
+            return NULL;                                                                 \
+        }                                                                                \
+        if(a->backend == PICO_BACKEND_CPU) {                                             \
+            pico_##name##_cpu(a, out);                                                   \
+        } else if(a->backend == PICO_BACKEND_CUDA) {                                     \
+            if(!pico_cuda_##name(a, out)) {                                              \
+                return NULL;                                                             \
+            }                                                                            \
+        } else {                                                                         \
+            fprintf(stderr, "PicoBackendError: " #name " unknown backend\n");           \
+            return NULL;                                                                 \
+        }                                                                                \
+        out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));                  \
+        out->parents[0] = a;                                                             \
+        out->num_parents = 1;                                                            \
+        out->_backward = pico_##name##_backward;                                         \
+        return out;                                                                      \
     }
 
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for sqrt allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_sqrt_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_sqrt_backward;
-
-    return out;
-}
-
-struct PicoTensor *pico_sin(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "sin")) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for sin allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_sin_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_sin_backward;
-
-    return out;
-}
-
-struct PicoTensor *pico_cos(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "cos")) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for cos allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_cos_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_cos_backward;
-
-    return out;
-}
-
-struct PicoTensor *pico_tan(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "tan")) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for tan allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_tan_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_tan_backward;
-
-    return out;
-}
-
-struct PicoTensor *pico_tanh(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "tanh")) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for tanh allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_tanh_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_tanh_backward;
-
-    return out;
-}
-
-struct PicoTensor *pico_log(struct PicoContext *ctx, struct PicoTensor *a) {
-    if(!pico_require_cpu_backend(a->backend, "log")) {
-        return NULL;
-    }
-
-    struct Arena *arena = pico_context_arena(ctx);
-    if(arena == NULL) {
-        fprintf(stderr, "PicoArenaError: no arena available for log allocation\n");
-        return NULL;
-    }
-
-    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, a->shape, a->ndim);
-    if(out == NULL) {
-        return NULL;
-    }
-
-    if(a->backend == PICO_BACKEND_CPU) {
-        pico_log_cpu(a, out);
-    }
-
-    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *));
-    out->parents[0] = a;
-    out->num_parents = 1;
-    out->_backward = pico_log_backward;
-
-    return out;
-}
+PICO_DEFINE_UNARY_OP(sqrt)
+PICO_DEFINE_UNARY_OP(sin)
+PICO_DEFINE_UNARY_OP(cos)
+PICO_DEFINE_UNARY_OP(tan)
+PICO_DEFINE_UNARY_OP(tanh)
+PICO_DEFINE_UNARY_OP(log)
