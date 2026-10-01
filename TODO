@@ -4,7 +4,7 @@
   - [x] cuda elementwise ops: add, sub, mul, div, sqrt, log, relu, sigmoid, etc.
   - [x] cuda matmul, softmax, and swiglu.
   - [x] cuda embedding lookup for token ids -> token vectors.
-  - [ ] cuda rmsnorm forward for transformer blocks.
+  - [x] cuda rmsnorm forward for transformer blocks.
   - [ ] cuda grouped matmul for gqa q heads -> shared kv heads.
   - [ ] cuda causal and sliding-window attention mask application.
   - [ ] cuda dropout forward/backward for ffn regularization.

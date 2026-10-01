@@ -4,7 +4,7 @@
 #include <math.h>
 
 #include "activations.h"
-#include "tensor.h"
+#include "../tensor.h"
 
 static inline void pico_relu_backward(struct PicoTensor* self) {
     struct PicoTensor* parent = self->parents[0];

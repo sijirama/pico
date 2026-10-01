@@ -36,6 +36,7 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
 	$(SRC_DIR)/kernels/cuda/attention/softmax.cu \
 	$(SRC_DIR)/kernels/cuda/attention/rmsnorm.cu \
+	$(SRC_DIR)/kernels/cuda/attention/fused_swiglu.cu \
 	$(SRC_DIR)/kernels/cuda/attention/swiglu.cu
 CUDA_OBJS = $(patsubst $(SRC_DIR)/%.cu, $(OBJ_DIR)/%.cu.o, $(CUDA_SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o

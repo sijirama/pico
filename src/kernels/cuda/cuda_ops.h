@@ -40,6 +40,8 @@ bool pico_cuda_softmax(struct PicoTensor* input, struct PicoTensor* out, uint8_t
 bool pico_cuda_mean(struct PicoTensor* input, struct PicoTensor* out, int dim);
 bool pico_cuda_rmsnorm(struct PicoTensor* input, struct PicoTensor* weight, struct PicoTensor* out, float eps);
 bool pico_cuda_swiglu(struct PicoTensor* x, struct PicoTensor* gate, struct PicoTensor* out);
+bool pico_cuda_fused_swiglu(struct PicoTensor* x, struct PicoTensor* gate, struct PicoTensor* out, float dropout_p,
+                            bool training);
 bool pico_cuda_embedding(struct PicoTensor* table, struct PicoTensor* input_indices, struct PicoTensor* out);
 bool pico_cuda_cross_entropy(struct PicoTensor* logits, struct PicoTensor* targets, struct PicoTensor* out, int reduction);
 
