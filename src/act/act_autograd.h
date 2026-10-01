@@ -4,10 +4,16 @@
 #include <math.h>
 
 #include "activations.h"
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 
 static inline void pico_relu_backward(struct PicoTensor* self) {
     struct PicoTensor* parent = self->parents[0];
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_relu_backward(self, parent);
+        return;
+    }
 
     int64_t N = parent->numel;
 
@@ -29,6 +35,11 @@ static inline void pico_sigmoid_backward(struct PicoTensor* self) {
 static inline void pico_swiglu_backward(struct PicoTensor* self) {
     struct PicoTensor* x = self->parents[0];
     struct PicoTensor* gate = self->parents[1];
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_swiglu_backward(self, x, gate);
+        return;
+    }
 
     for(int64_t i = 0; i < self->numel; i++) {
         float sig = sigmoid(x->data[i]);

@@ -16,6 +16,11 @@ static void pico_rmsnorm_backward(struct PicoTensor* self) {
     struct PicoTensor* weight = self->parents[1];
     struct PicoTensor* eps_t = self->parents[2];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_rmsnorm_backward(self, input, weight, eps_t);
+        return;
+    }
+
     int D = input->shape[input->ndim - 1];
     int64_t rows = input->numel / D;
     float eps = eps_t->data[0];

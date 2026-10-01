@@ -5,6 +5,7 @@
 #pragma once
 #include <math.h>
 
+#include "../kernels/cuda/cuda_ops.h"
 #include "../tensor.h"
 
 static inline void pico_mse_loss_mean_backward(struct PicoTensor *self) {
@@ -59,6 +60,11 @@ static inline int64_t pico_ce_logits_base_for_row(struct PicoTensor *logits, int
 static inline void pico_cross_entropy_loss_backward(struct PicoTensor *self) {
     struct PicoTensor *logits = self->parents[0];
     struct PicoTensor *targets = self->parents[1];
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_cross_entropy_backward(self, logits, targets, (int)self->op_param);
+        return;
+    }
 
     int64_t classes = logits->shape[logits->ndim - 1];
     int64_t rows = logits->numel / classes;

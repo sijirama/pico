@@ -17,6 +17,11 @@ static inline void pico_embedding_backward(struct PicoTensor *self) {
     struct PicoTensor *table = self->parents[0];
     struct PicoTensor *input_indices = self->parents[1];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_embedding_backward(self, table, input_indices);
+        return;
+    }
+
     int embedding_dim = table->shape[1];
     int64_t seq_len = input_indices->shape[0];
 

@@ -15,6 +15,11 @@ static void pico_nn_fused_swiglu_backward(struct PicoTensor* self) {
     struct PicoTensor* up = self->parents[1];
     struct PicoTensor* mask = self->parents[2];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_fused_swiglu_backward(self, gate, up, mask);
+        return;
+    }
+
     for(int64_t i = 0; i < self->numel; i++) {
         float sig = sigmoid(gate->data[i]);
         float silu_gate = gate->data[i] * sig;

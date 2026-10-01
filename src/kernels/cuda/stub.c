@@ -176,3 +176,117 @@ PICO_WEAK bool pico_cuda_cross_entropy(struct PicoTensor *logits, struct PicoTen
     (void)reduction;
     return pico_cuda_stub_missing("cross_entropy");
 }
+
+PICO_WEAK bool pico_cuda_fill(struct PicoTensor *tensor, float value) {
+    (void)tensor;
+    (void)value;
+    return pico_cuda_stub_missing("fill");
+}
+
+PICO_WEAK bool pico_cuda_zero_grad(struct PicoTensor *tensor) {
+    (void)tensor;
+    return pico_cuda_stub_missing("zero_grad");
+}
+
+#define PICO_DEFINE_CUDA_BACKWARD_STUB2(name)                                                                                             \
+    PICO_WEAK bool pico_cuda_##name##_backward(struct PicoTensor *self, struct PicoTensor *a, struct PicoTensor *b) {                    \
+        (void)self;                                                                                                                       \
+        (void)a;                                                                                                                          \
+        (void)b;                                                                                                                          \
+        return pico_cuda_stub_missing(#name "_backward");                                                                                \
+    }
+
+PICO_DEFINE_CUDA_BACKWARD_STUB2(add)
+PICO_DEFINE_CUDA_BACKWARD_STUB2(sub)
+PICO_DEFINE_CUDA_BACKWARD_STUB2(mul)
+PICO_DEFINE_CUDA_BACKWARD_STUB2(div)
+PICO_DEFINE_CUDA_BACKWARD_STUB2(swiglu)
+
+PICO_WEAK bool pico_cuda_relu_backward(struct PicoTensor *self, struct PicoTensor *parent) {
+    (void)self;
+    (void)parent;
+    return pico_cuda_stub_missing("relu_backward");
+}
+
+PICO_WEAK bool pico_cuda_fused_swiglu_backward(struct PicoTensor *self, struct PicoTensor *gate, struct PicoTensor *up,
+                                               struct PicoTensor *mask) {
+    (void)self;
+    (void)gate;
+    (void)up;
+    (void)mask;
+    return pico_cuda_stub_missing("fused_swiglu_backward");
+}
+
+PICO_WEAK bool pico_cuda_softmax_backward(struct PicoTensor *self, struct PicoTensor *input, int dim) {
+    (void)self;
+    (void)input;
+    (void)dim;
+    return pico_cuda_stub_missing("softmax_backward");
+}
+
+PICO_WEAK bool pico_cuda_matmul_backward(struct PicoTensor *self, struct PicoTensor *a, struct PicoTensor *b) {
+    (void)self;
+    (void)a;
+    (void)b;
+    return pico_cuda_stub_missing("matmul_backward");
+}
+
+PICO_WEAK bool pico_cuda_grouped_matmul_backward(struct PicoTensor *self, struct PicoTensor *a, struct PicoTensor *b,
+                                                 int group_size) {
+    (void)self;
+    (void)a;
+    (void)b;
+    (void)group_size;
+    return pico_cuda_stub_missing("grouped_matmul_backward");
+}
+
+PICO_WEAK bool pico_cuda_cross_entropy_backward(struct PicoTensor *self, struct PicoTensor *logits, struct PicoTensor *targets,
+                                                int reduction) {
+    (void)self;
+    (void)logits;
+    (void)targets;
+    (void)reduction;
+    return pico_cuda_stub_missing("cross_entropy_backward");
+}
+
+PICO_WEAK bool pico_cuda_rmsnorm_backward(struct PicoTensor *self, struct PicoTensor *input, struct PicoTensor *weight,
+                                          struct PicoTensor *eps) {
+    (void)self;
+    (void)input;
+    (void)weight;
+    (void)eps;
+    return pico_cuda_stub_missing("rmsnorm_backward");
+}
+
+PICO_WEAK bool pico_cuda_embedding_backward(struct PicoTensor *self, struct PicoTensor *table, struct PicoTensor *input_indices) {
+    (void)self;
+    (void)table;
+    (void)input_indices;
+    return pico_cuda_stub_missing("embedding_backward");
+}
+
+PICO_WEAK bool pico_cuda_optim_alloc(float **ptr, int64_t numel) {
+    (void)ptr;
+    (void)numel;
+    return pico_cuda_stub_missing("optim_alloc");
+}
+
+PICO_WEAK bool pico_cuda_optim_free(float *ptr) {
+    (void)ptr;
+    return true;
+}
+
+PICO_WEAK bool pico_cuda_adamw_step(struct PicoTensor *tensor, float *m, float *v, float lr, float beta1, float beta2,
+                                    float eps, float weight_decay, float beta1_correction, float beta2_correction) {
+    (void)tensor;
+    (void)m;
+    (void)v;
+    (void)lr;
+    (void)beta1;
+    (void)beta2;
+    (void)eps;
+    (void)weight_decay;
+    (void)beta1_correction;
+    (void)beta2_correction;
+    return pico_cuda_stub_missing("adamw_step");
+}

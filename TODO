@@ -1,5 +1,4 @@
 
-  cuda kernels needed for tinystories transformer training:
   - [x] cuda device allocation and explicit cpu/cuda transfer flow.
   - [x] keep tensors on cuda across the full train step, transfer back only for save/debug.
   - [x] cuda elementwise ops: add, sub, mul, div, sqrt, log, relu, sigmoid, etc.
@@ -9,21 +8,20 @@
   - [x] cuda dropout forward/backward for ffn regularization.
   - [x] cuda grouped matmul for gqa q heads -> shared kv heads.
   - [x] cuda cross entropy loss for next-token prediction.
-
-  - [ ] cuda causal and sliding-window attention mask application.
-  - [ ] cuda adamw parameter update and zero_grad path.
-
+  - [x] cuda adamw parameter update and zero_grad path.
   - [x] work on the device backend system
   - [x] add RMSNorm.
   - [x] add Adam and AdamW optimizer.
   - [x] add dropout with train/eval behavior.
   - [x] add SwiGLU-style FFN block.
   - [x] add cross entropy loss for next-token prediction.
+  - [x] finish the cuda kernel flow for core ops: matmul, grouped matmul, elementwise ops, softmax, activations, and layout ops.
+  - [x] build a tiny text dataset path: x tokens, y shifted-right tokens.
+  - [x] add a simple Gemma-ish decoder block for text only, no MoE, no multimodal.
+  - [x] make safetensors save reliable for the full model.
+
+  - [ ] cuda causal and sliding-window attention mask application.
   - [ ] finish local/global attention flow, including grouped attention where needed.
   - [ ] pico_swa_matmul still just returns the main matmul function
   - [ ] Add regularizers, start with L2 / weight decay.
-  - [ ] finish the cuda kernel flow for core ops: matmul, grouped matmul, elementwise ops, softmax, activations, and layout ops.
-  - [ ] build a tiny text dataset path: x tokens, y shifted-right tokens.
-  - [ ] add a simple Gemma-ish decoder block for text only, no MoE, no multimodal.
-  - [ ] make safetensors save reliable for the full model.
   - [ ] train a small model, save it, and upload the checkpoint to Hugging Face.

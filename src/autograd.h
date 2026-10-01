@@ -49,11 +49,17 @@
 #include <math.h>
 #include <stdint.h>
 
+#include "kernels/cuda/cuda_ops.h"
 #include "tensor.h"
 
 static inline void pico_add_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_add_backward(self, a, b);
+        return;
+    }
 
     int64_t ia = 0;
     int64_t ib = 0;
@@ -70,6 +76,11 @@ static inline void pico_sub_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_sub_backward(self, a, b);
+        return;
+    }
+
     int64_t ia = 0;
     int64_t ib = 0;
     for(int64_t i = 0; i < self->numel; i++) {
@@ -84,6 +95,11 @@ static inline void pico_mul_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_mul_backward(self, a, b);
+        return;
+    }
+
     int64_t ia = 0;
     int64_t ib = 0;
     for(int64_t i = 0; i < self->numel; i++) {
@@ -97,6 +113,11 @@ static inline void pico_mul_backward(struct PicoTensor* self) {
 static inline void pico_div_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_div_backward(self, a, b);
+        return;
+    }
 
     int64_t ia = 0;
     int64_t ib = 0;
@@ -113,6 +134,11 @@ static inline void pico_dropout_backward(struct PicoTensor* self) {
     struct PicoTensor* input = self->parents[0];
     struct PicoTensor* mask = self->parents[1];
 
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_mul_backward(self, input, mask);
+        return;
+    }
+
     for(int64_t i = 0; i < self->numel; i++) {
         input->grad[i] += self->grad[i] * mask->data[i];
     }
@@ -121,6 +147,12 @@ static inline void pico_dropout_backward(struct PicoTensor* self) {
 static inline void pico_softmax_backward(struct PicoTensor* self) {
     struct PicoTensor* input = self->parents[0];
     int dim = (int)self->op_param;
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_softmax_backward(self, input, dim);
+        return;
+    }
+
     int ndim = self->ndim;
     int64_t axis_len = self->shape[dim];
     int64_t slice_count = self->numel / axis_len;
@@ -161,6 +193,11 @@ static inline void pico_softmax_backward(struct PicoTensor* self) {
 static inline void pico_matmul_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];  // A (M,K)
     struct PicoTensor* b = self->parents[1];  // B (K,N)
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_matmul_backward(self, a, b);
+        return;
+    }
 
     if(a->ndim == 2 && b->ndim == 2 && self->ndim == 2) {
         int M = a->shape[0];
@@ -315,6 +352,11 @@ static inline void pico_grouped_matmul_backward(struct PicoTensor* self) {
     struct PicoTensor* a = self->parents[0];
     struct PicoTensor* b = self->parents[1];
     int group_size = (int)self->op_param;
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_grouped_matmul_backward(self, a, b, group_size);
+        return;
+    }
 
     int B = a->shape[0];
     int Hq = a->shape[1];

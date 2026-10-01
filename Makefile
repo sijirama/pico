@@ -30,6 +30,16 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/cuda_backend.cu \
 	$(SRC_DIR)/kernels/cuda/memory.cu \
 	$(SRC_DIR)/kernels/cuda/common/reduction.cu \
+	$(SRC_DIR)/kernels/cuda/backward/fill.cu \
+	$(SRC_DIR)/kernels/cuda/backward/elementwise.cu \
+	$(SRC_DIR)/kernels/cuda/backward/activations.cu \
+	$(SRC_DIR)/kernels/cuda/backward/softmax.cu \
+	$(SRC_DIR)/kernels/cuda/backward/matmul.cu \
+	$(SRC_DIR)/kernels/cuda/backward/grouped_matmul.cu \
+	$(SRC_DIR)/kernels/cuda/backward/cross_entropy.cu \
+	$(SRC_DIR)/kernels/cuda/backward/rmsnorm.cu \
+	$(SRC_DIR)/kernels/cuda/backward/embedding.cu \
+	$(SRC_DIR)/kernels/cuda/optim/adamw.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/binary.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/unary.cu \
 	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
@@ -38,6 +48,7 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/attention/rmsnorm.cu \
 	$(SRC_DIR)/kernels/cuda/attention/fused_swiglu.cu \
 	$(SRC_DIR)/kernels/cuda/attention/cross_entropy.cu \
+	$(SRC_DIR)/kernels/cuda/attention/embedding.cu \
 	$(SRC_DIR)/kernels/cuda/attention/swiglu.cu
 CUDA_OBJS = $(patsubst $(SRC_DIR)/%.cu, $(OBJ_DIR)/%.cu.o, $(CUDA_SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o

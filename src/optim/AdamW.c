@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "ctx.h"
+#include "kernels/cuda/cuda_ops.h"
 #include "optim.h"
 #include "tensor.h"
 
@@ -18,13 +19,21 @@ static void pico_optim_adamw_clear_state(struct PicoOptimAdamW* optim) {
 
     if(optim->m != NULL) {
         for(int i = 0; i < optim->param_count; i++) {
-            free(optim->m[i]);
+            if(optim->params != NULL && optim->params[i] != NULL && optim->params[i]->backend == PICO_BACKEND_CUDA) {
+                pico_cuda_optim_free(optim->m[i]);
+            } else {
+                free(optim->m[i]);
+            }
         }
     }
 
     if(optim->v != NULL) {
         for(int i = 0; i < optim->param_count; i++) {
-            free(optim->v[i]);
+            if(optim->params != NULL && optim->params[i] != NULL && optim->params[i]->backend == PICO_BACKEND_CUDA) {
+                pico_cuda_optim_free(optim->v[i]);
+            } else {
+                free(optim->v[i]);
+            }
         }
     }
 
@@ -79,11 +88,20 @@ static bool pico_optim_adamw_ensure_state(struct PicoContext* ctx, struct PicoOp
     for(int i = 0; i < optim->param_count; i++) {
         struct PicoTensor* tensor = (struct PicoTensor*)ctx->params.data[i];
         optim->params[i] = tensor;
-        optim->m[i] = (float*)calloc(tensor->numel, sizeof(float));
-        optim->v[i] = (float*)calloc(tensor->numel, sizeof(float));
-        if(optim->m[i] == NULL || optim->v[i] == NULL) {
-            pico_optim_adamw_clear_state(optim);
-            return false;
+
+        if(tensor->backend == PICO_BACKEND_CUDA) {
+            if(!pico_cuda_optim_alloc(&optim->m[i], tensor->numel) ||
+               !pico_cuda_optim_alloc(&optim->v[i], tensor->numel)) {
+                pico_optim_adamw_clear_state(optim);
+                return false;
+            }
+        } else {
+            optim->m[i] = (float*)calloc(tensor->numel, sizeof(float));
+            optim->v[i] = (float*)calloc(tensor->numel, sizeof(float));
+            if(optim->m[i] == NULL || optim->v[i] == NULL) {
+                pico_optim_adamw_clear_state(optim);
+                return false;
+            }
         }
     }
 
@@ -116,7 +134,13 @@ void pico_optim_adamw_step(struct PicoContext* ctx, struct PicoOptimAdamW* optim
     for(int i = 0; i < optim->param_count; i++) {
         struct PicoTensor* tensor = optim->params[i];
         if(tensor == NULL || tensor->data == NULL || tensor->grad == NULL) {
-            fprintf(stderr, "PicoOptimAdamW: param data/grad is not on cpu\n");
+            fprintf(stderr, "PicoOptimAdamW: param data/grad is not allocated\n");
+            continue;
+        }
+
+        if(tensor->backend == PICO_BACKEND_CUDA) {
+            pico_cuda_adamw_step(tensor, optim->m[i], optim->v[i], optim->lr, optim->beta1, optim->beta2,
+                                 optim->eps, optim->weight_decay, beta1_correction, beta2_correction);
             continue;
         }
 
@@ -144,8 +168,12 @@ void pico_optim_adamw_zero_grad(struct PicoContext* ctx, struct PicoOptimAdamW* 
             continue;
         }
 
-        for(int j = 0; j < tensor->numel; j++) {
-            tensor->grad[j] = 0.0f;
+        if(tensor->backend == PICO_BACKEND_CUDA) {
+            pico_cuda_zero_grad(tensor);
+        } else {
+            for(int j = 0; j < tensor->numel; j++) {
+                tensor->grad[j] = 0.0f;
+            }
         }
     }
 }

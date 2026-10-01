@@ -10,6 +10,7 @@
 #include "arena.h"
 #include "ctx.h"
 #include "global.h"
+#include "kernels/cuda/cuda_ops.h"
 #include "lib/pico_vector.h"
 #include "ops.h"
 
@@ -38,8 +39,12 @@ void pico_backward(
     // seed the entry node with grad 1
     struct PicoTensor *curr = NULL;
     curr = (struct PicoTensor *)vector.data[0];
-    for(int i = 0; i < curr->numel; i++) {
-        curr->grad[i] = 1.0f;
+    if(curr->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_fill(curr, 1.0f);
+    } else {
+        for(int i = 0; i < curr->numel; i++) {
+            curr->grad[i] = 1.0f;
+        }
     }
 
     // call backward on each  (now iterate FORWARD: entry is
