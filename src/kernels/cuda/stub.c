@@ -1,3 +1,9 @@
+// INFO: cpu-only fallback for the cuda boundary.
+// normal gcc builds still compile dispatch code that references pico_cuda_*
+// symbols, even when no .cu kernels are linked. these weak definitions keep
+// that build linkable and fail loudly if a cuda path is accidentally called.
+// when libpico_cuda.a is linked, the real .cu definitions override these.
+
 #include "cuda_ops.h"
 
 #include <stdio.h>

@@ -28,15 +28,16 @@ SRCS = $(filter-out $(SRC_DIR)/main.c, $(shell find $(SRC_DIR) -name '*.c'))
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/cuda_backend.cu \
-	$(SRC_DIR)/kernels/cuda/cuda_ops.cu \
 	$(SRC_DIR)/kernels/cuda/memory.cu \
 	$(SRC_DIR)/kernels/cuda/common/reduction.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/binary.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/unary.cu \
 	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
+	$(SRC_DIR)/kernels/cuda/gemm/grouped_matmul.cu \
 	$(SRC_DIR)/kernels/cuda/attention/softmax.cu \
 	$(SRC_DIR)/kernels/cuda/attention/rmsnorm.cu \
 	$(SRC_DIR)/kernels/cuda/attention/fused_swiglu.cu \
+	$(SRC_DIR)/kernels/cuda/attention/cross_entropy.cu \
 	$(SRC_DIR)/kernels/cuda/attention/swiglu.cu
 CUDA_OBJS = $(patsubst $(SRC_DIR)/%.cu, $(OBJ_DIR)/%.cu.o, $(CUDA_SRCS))
 MAIN_OBJ = $(OBJ_DIR)/main.o
