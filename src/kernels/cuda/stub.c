@@ -113,6 +113,14 @@ PICO_WEAK bool pico_cuda_matmul(struct PicoTensor *a, struct PicoTensor *b, stru
     return pico_cuda_stub_missing("matmul");
 }
 
+PICO_WEAK bool pico_cuda_swa_matmul(struct PicoTensor *a, struct PicoTensor *b, struct PicoTensor *out, int window) {
+    (void)a;
+    (void)b;
+    (void)out;
+    (void)window;
+    return pico_cuda_stub_missing("swa_matmul");
+}
+
 PICO_WEAK bool pico_cuda_grouped_matmul(struct PicoTensor *a, struct PicoTensor *b, struct PicoTensor *out, int group_size) {
     (void)a;
     (void)b;
@@ -126,6 +134,14 @@ PICO_WEAK bool pico_cuda_softmax(struct PicoTensor *input, struct PicoTensor *ou
     (void)out;
     (void)dim;
     return pico_cuda_stub_missing("softmax");
+}
+
+PICO_WEAK bool pico_cuda_causal_softmax(struct PicoTensor *input, struct PicoTensor *out, uint8_t dim, int window) {
+    (void)input;
+    (void)out;
+    (void)dim;
+    (void)window;
+    return pico_cuda_stub_missing("causal_softmax");
 }
 
 PICO_WEAK bool pico_cuda_mean(struct PicoTensor *input, struct PicoTensor *out, int dim) {
@@ -229,6 +245,15 @@ PICO_WEAK bool pico_cuda_matmul_backward(struct PicoTensor *self, struct PicoTen
     (void)a;
     (void)b;
     return pico_cuda_stub_missing("matmul_backward");
+}
+
+PICO_WEAK bool pico_cuda_swa_matmul_backward(struct PicoTensor *self, struct PicoTensor *a, struct PicoTensor *b,
+                                             int window) {
+    (void)self;
+    (void)a;
+    (void)b;
+    (void)window;
+    return pico_cuda_stub_missing("swa_matmul_backward");
 }
 
 PICO_WEAK bool pico_cuda_grouped_matmul_backward(struct PicoTensor *self, struct PicoTensor *a, struct PicoTensor *b,

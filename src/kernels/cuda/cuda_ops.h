@@ -34,9 +34,11 @@ bool pico_cuda_relu(struct PicoTensor* a, struct PicoTensor* out);
 bool pico_cuda_sigmoid(struct PicoTensor* a, struct PicoTensor* out);
 
 bool pico_cuda_matmul(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out);
+bool pico_cuda_swa_matmul(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int window);
 bool pico_cuda_grouped_matmul(struct PicoTensor* a, struct PicoTensor* b, struct PicoTensor* out, int group_size);
 
 bool pico_cuda_softmax(struct PicoTensor* input, struct PicoTensor* out, uint8_t dim);
+bool pico_cuda_causal_softmax(struct PicoTensor* input, struct PicoTensor* out, uint8_t dim, int window);
 bool pico_cuda_mean(struct PicoTensor* input, struct PicoTensor* out, int dim);
 bool pico_cuda_rmsnorm(struct PicoTensor* input, struct PicoTensor* weight, struct PicoTensor* out, float eps);
 bool pico_cuda_swiglu(struct PicoTensor* x, struct PicoTensor* gate, struct PicoTensor* out);
@@ -59,6 +61,7 @@ bool pico_cuda_fused_swiglu_backward(struct PicoTensor* self, struct PicoTensor*
                                      struct PicoTensor* mask);
 bool pico_cuda_softmax_backward(struct PicoTensor* self, struct PicoTensor* input, int dim);
 bool pico_cuda_matmul_backward(struct PicoTensor* self, struct PicoTensor* a, struct PicoTensor* b);
+bool pico_cuda_swa_matmul_backward(struct PicoTensor* self, struct PicoTensor* a, struct PicoTensor* b, int window);
 bool pico_cuda_grouped_matmul_backward(struct PicoTensor* self, struct PicoTensor* a, struct PicoTensor* b,
                                        int group_size);
 bool pico_cuda_cross_entropy_backward(struct PicoTensor* self, struct PicoTensor* logits, struct PicoTensor* targets,

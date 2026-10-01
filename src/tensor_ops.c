@@ -368,6 +368,95 @@ struct PicoTensor *pico_softmax(struct PicoContext *ctx, struct PicoTensor *tens
     return out;
 }
 
+static bool pico_apply_causal_mask_cpu(struct PicoTensor *tensor, int window) {
+    if(tensor == NULL || tensor->data == NULL) {
+        return false;
+    }
+
+    if(tensor->ndim != 3 && tensor->ndim != 4) {
+        fprintf(stderr, "PicoAttentionError: causal softmax expects a 3D or 4D tensor\n");
+        return false;
+    }
+
+    int64_t B = tensor->ndim == 4 ? tensor->shape[0] : 1;
+    int64_t H = tensor->ndim == 4 ? tensor->shape[1] : tensor->shape[0];
+    int64_t Q = tensor->ndim == 4 ? tensor->shape[2] : tensor->shape[1];
+    int64_t K = tensor->ndim == 4 ? tensor->shape[3] : tensor->shape[2];
+
+    if(Q != K) {
+        fprintf(stderr, "PicoAttentionError: causal softmax expects square attention scores\n");
+        return false;
+    }
+
+    for(int64_t b = 0; b < B; b++) {
+        for(int64_t h = 0; h < H; h++) {
+            for(int64_t q = 0; q < Q; q++) {
+                for(int64_t k = 0; k < K; k++) {
+                    int64_t offset = tensor->ndim == 4
+                                         ? b * tensor->strides[0] + h * tensor->strides[1] + q * tensor->strides[2] + k * tensor->strides[3]
+                                         : h * tensor->strides[0] + q * tensor->strides[1] + k * tensor->strides[2];
+
+                    bool outside_window = window >= 0 && k < q - window;
+                    if(k > q || outside_window) {
+                        tensor->data[offset] = -INFINITY;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+struct PicoTensor *pico_causal_softmax(struct PicoContext *ctx, struct PicoTensor *tensor, uint8_t dim, int window) {
+    if(ctx == NULL || tensor == NULL) {
+        return NULL;
+    }
+
+    if(dim >= tensor->ndim) {
+        fprintf(stderr, "causal softmax dim is out of range\n");
+        return NULL;
+    }
+
+    if(tensor->backend == PICO_BACKEND_CPU) {
+        if(!pico_apply_causal_mask_cpu(tensor, window)) {
+            return NULL;
+        }
+        return pico_softmax(ctx, tensor, dim);
+    }
+
+    if(tensor->backend != PICO_BACKEND_CUDA) {
+        fprintf(stderr, "PicoBackendError: causal softmax unknown backend\n");
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for causal softmax graph allocation\n");
+        return NULL;
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, tensor->backend, tensor->shape, tensor->ndim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    if(!pico_cuda_causal_softmax(tensor, out, dim, window)) {
+        return NULL;
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 1);
+    if(out->parents == NULL) {
+        return NULL;
+    }
+    out->parents[0] = tensor;
+    out->num_parents = 1;
+    out->op_param = dim;
+    out->_backward = pico_softmax_backward;
+
+    return out;
+}
+
 struct PicoTensor *pico_sum(struct PicoContext *ctx, struct PicoTensor *tensor, int dim) {
     if(ctx == NULL || tensor == NULL) {
         return NULL;

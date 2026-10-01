@@ -35,6 +35,7 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/backward/activations.cu \
 	$(SRC_DIR)/kernels/cuda/backward/softmax.cu \
 	$(SRC_DIR)/kernels/cuda/backward/matmul.cu \
+	$(SRC_DIR)/kernels/cuda/backward/swa_matmul.cu \
 	$(SRC_DIR)/kernels/cuda/backward/grouped_matmul.cu \
 	$(SRC_DIR)/kernels/cuda/backward/cross_entropy.cu \
 	$(SRC_DIR)/kernels/cuda/backward/rmsnorm.cu \
@@ -43,8 +44,10 @@ CUDA_SRCS = \
 	$(SRC_DIR)/kernels/cuda/elementwise/binary.cu \
 	$(SRC_DIR)/kernels/cuda/elementwise/unary.cu \
 	$(SRC_DIR)/kernels/cuda/gemm/matmul.cu \
+	$(SRC_DIR)/kernels/cuda/gemm/swa_matmul.cu \
 	$(SRC_DIR)/kernels/cuda/gemm/grouped_matmul.cu \
 	$(SRC_DIR)/kernels/cuda/attention/softmax.cu \
+	$(SRC_DIR)/kernels/cuda/attention/causal_softmax.cu \
 	$(SRC_DIR)/kernels/cuda/attention/rmsnorm.cu \
 	$(SRC_DIR)/kernels/cuda/attention/fused_swiglu.cu \
 	$(SRC_DIR)/kernels/cuda/attention/cross_entropy.cu \

@@ -146,3 +146,159 @@ UTEST(grouped_matmul, rejects_cuda_backend_for_now) {
 
     pico_shutdown(ctx);
 }
+
+UTEST(swa_matmul, forward_computes_only_causal_window_entries_3d) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t a_shape[] = {1, 4, 2};
+    int64_t b_shape[] = {1, 2, 4};
+    float a_data[] = {
+        1, 0,
+        0, 1,
+        1, 1,
+        2, 1,
+    };
+    float b_data[] = {
+        1, 2, 3, 4,
+        10, 20, 30, 40,
+    };
+
+    struct PicoTensor* a = pico_tensor_from_data(ctx, a_shape, 3, a_data);
+    struct PicoTensor* b = pico_tensor_from_data(ctx, b_shape, 3, b_data);
+    struct PicoTensor* out = pico_swa_matmul(ctx, a, b, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 3);
+    ASSERT_EQ(out->shape[0], 1);
+    ASSERT_EQ(out->shape[1], 4);
+    ASSERT_EQ(out->shape[2], 4);
+
+    float expected[] = {
+        1, 0, 0, 0,
+        10, 20, 0, 0,
+        0, 22, 33, 0,
+        0, 0, 36, 48,
+    };
+
+    for(int i = 0; i < 16; i++) {
+        ASSERT_CLOSE(out->data[i], expected[i]);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(swa_matmul, forward_computes_only_causal_window_entries_4d) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t a_shape[] = {1, 1, 3, 1};
+    int64_t b_shape[] = {1, 1, 1, 3};
+    float a_data[] = {2, 3, 4};
+    float b_data[] = {5, 6, 7};
+
+    struct PicoTensor* a = pico_tensor_from_data(ctx, a_shape, 4, a_data);
+    struct PicoTensor* b = pico_tensor_from_data(ctx, b_shape, 4, b_data);
+    struct PicoTensor* out = pico_swa_matmul(ctx, a, b, 0);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->ndim, 4);
+    ASSERT_EQ(out->shape[0], 1);
+    ASSERT_EQ(out->shape[1], 1);
+    ASSERT_EQ(out->shape[2], 3);
+    ASSERT_EQ(out->shape[3], 3);
+
+    float expected[] = {
+        10, 0, 0,
+        0, 18, 0,
+        0, 0, 28,
+    };
+
+    for(int i = 0; i < 9; i++) {
+        ASSERT_CLOSE(out->data[i], expected[i]);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(swa_matmul, wires_graph_like_matmul) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t a_shape[] = {1, 2, 1};
+    int64_t b_shape[] = {1, 1, 2};
+    struct PicoTensor* a = pico_param(ctx, a_shape, 3);
+    struct PicoTensor* b = pico_param(ctx, b_shape, 3);
+    struct PicoTensor* out = pico_swa_matmul(ctx, a, b, 1);
+
+    ASSERT_TRUE(out != NULL);
+    ASSERT_EQ(out->num_parents, 2);
+    ASSERT_TRUE(out->parents[0] == a);
+    ASSERT_TRUE(out->parents[1] == b);
+    ASSERT_EQ(out->op_param, 1);
+    ASSERT_TRUE(out->_backward != NULL);
+
+    pico_shutdown(ctx);
+}
+
+UTEST(swa_matmul, backward_ignores_outside_window_gradients) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t a_shape[] = {1, 3, 2};
+    int64_t b_shape[] = {1, 2, 3};
+    struct PicoTensor* a = pico_param(ctx, a_shape, 3);
+    struct PicoTensor* b = pico_param(ctx, b_shape, 3);
+
+    float a_data[] = {
+        1, 2,
+        3, 4,
+        5, 6,
+    };
+    float b_data[] = {
+        1, 2, 3,
+        4, 5, 6,
+    };
+    for(int i = 0; i < 6; i++) {
+        a->data[i] = a_data[i];
+        b->data[i] = b_data[i];
+    }
+
+    struct PicoTensor* out = pico_swa_matmul(ctx, a, b, 1);
+    ASSERT_TRUE(out != NULL);
+
+    for(int i = 0; i < out->numel; i++) {
+        out->grad[i] = 1.0f;
+    }
+    out->_backward(out);
+
+    float expected_a_grad[] = {
+        1, 4,
+        3, 9,
+        5, 11,
+    };
+    float expected_b_grad[] = {
+        4, 8, 5,
+        6, 10, 6,
+    };
+
+    for(int i = 0; i < 6; i++) {
+        ASSERT_CLOSE(a->grad[i], expected_a_grad[i]);
+        ASSERT_CLOSE(b->grad[i], expected_b_grad[i]);
+    }
+
+    pico_shutdown(ctx);
+}
+
+UTEST(swa_matmul, rejects_invalid_shapes_and_window) {
+    struct PicoContext* ctx = pico_init_verbose(false);
+
+    int64_t a_shape[] = {1, 2, 1};
+    int64_t b_shape[] = {1, 1, 2};
+    struct PicoTensor* a = pico_create_tensor(ctx, a_shape, 3);
+    struct PicoTensor* b = pico_create_tensor(ctx, b_shape, 3);
+
+    ASSERT_TRUE(pico_swa_matmul(ctx, a, b, -1) == NULL);
+
+    int64_t bad_rank_shape[] = {2, 1};
+    struct PicoTensor* bad_rank = pico_create_tensor(ctx, bad_rank_shape, 2);
+    ASSERT_TRUE(pico_swa_matmul(ctx, bad_rank, b, 1) == NULL);
+
+    pico_shutdown(ctx);
+}

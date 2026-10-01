@@ -345,6 +345,65 @@ static inline void pico_matmul_backward(struct PicoTensor* self) {
     }
 }
 
+// sliding-window attention matmul only treats entries inside the causal window
+// as real dot products. outside-window output values are hard zeros, so their
+// gradients must not flow back into Q/K.
+static inline void pico_swa_matmul_backward(struct PicoTensor* self) {
+    struct PicoTensor* a = self->parents[0];
+    struct PicoTensor* b = self->parents[1];
+    int window = (int)self->op_param;
+
+    if(self->backend == PICO_BACKEND_CUDA) {
+        pico_cuda_swa_matmul_backward(self, a, b, window);
+        return;
+    }
+
+    int M = a->shape[a->ndim - 2];
+    int K = a->shape[a->ndim - 1];
+    int N = b->shape[b->ndim - 1];
+    int batch_count = self->numel / (M * N);
+
+    for(int batch = 0; batch < batch_count; batch++) {
+        float* a_batch = a->data + batch * M * K;
+        float* b_batch = b->data + batch * K * N;
+        float* da_batch = a->grad + batch * M * K;
+        float* db_batch = b->grad + batch * K * N;
+        float* dc_batch = self->grad + batch * M * N;
+
+        for(int i = 0; i < M; i++) {
+            int start_j = i - window;
+            if(start_j < 0) {
+                start_j = 0;
+            }
+            int end_j = i < N - 1 ? i : N - 1;
+
+            for(int k = 0; k < K; k++) {
+                float acc = 0.0f;
+                for(int j = start_j; j <= end_j; j++) {
+                    acc += dc_batch[i * N + j] * b_batch[k * N + j];
+                }
+                da_batch[i * K + k] += acc;
+            }
+        }
+
+        for(int k = 0; k < K; k++) {
+            for(int j = 0; j < N; j++) {
+                int start_i = j;
+                int end_i = j + window;
+                if(end_i > M - 1) {
+                    end_i = M - 1;
+                }
+
+                float acc = 0.0f;
+                for(int i = start_i; i <= end_i; i++) {
+                    acc += a_batch[i * K + k] * dc_batch[i * N + j];
+                }
+                db_batch[k * N + j] += acc;
+            }
+        }
+    }
+}
+
 // grouped matmul is the GQA-style batched matmul:
 // A [B,Hq,M,K] uses B [B,Hkv,K,N], where kv_head = q_head / group_size.
 // dB must accumulate across every query head that shared the same kv head.

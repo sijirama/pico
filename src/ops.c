@@ -302,8 +302,118 @@ struct PicoTensor *pico_matmul(struct PicoContext *ctx, struct PicoTensor *a, st
     return out;
 }
 
-struct PicoTensor *pico_swa_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int windows) {
-    return pico_matmul(ctx, a, b);
+static void pico_swa_matmul_cpu(struct PicoTensor *a, struct PicoTensor *b, struct PicoTensor *out, int window) {
+    int M = a->shape[a->ndim - 2];
+    int K = a->shape[a->ndim - 1];
+    int N = b->shape[b->ndim - 1];
+    int batch_count = out->numel / (M * N);
+
+    for(int batch = 0; batch < batch_count; batch++) {
+        float *out_batch = out->data + batch * M * N;
+        float *a_batch = a->data + batch * M * K;
+        float *b_batch = b->data + batch * K * N;
+
+        for(int row = 0; row < M; row++) {
+            for(int col = 0; col < N; col++) {
+                if(col > row || col < row - window) {
+                    out_batch[row * N + col] = 0.0f;
+                    continue;
+                }
+
+                float acc = 0.0f;
+                for(int k = 0; k < K; k++) {
+                    acc += a_batch[row * K + k] * b_batch[k * N + col];
+                }
+                out_batch[row * N + col] = acc;
+            }
+        }
+    }
+}
+
+struct PicoTensor *pico_swa_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b, int window) {
+    if(a == NULL || b == NULL) {
+        fprintf(stderr, "[Pico] Error: swa_matmul received NULL tensor\n");
+        return NULL;
+    }
+
+    if(window < 0) {
+        fprintf(stderr, "[Pico] Error: swa_matmul window must be non-negative\n");
+        return NULL;
+    }
+
+    bool is_3d_matmul = a->ndim == 3 && b->ndim == 3;
+    bool is_4d_matmul = a->ndim == 4 && b->ndim == 4;
+    if(!is_3d_matmul && !is_4d_matmul) {
+        fprintf(stderr, "[Pico] Error: swa_matmul only supports 3D or 4D attention score matmul\n");
+        return NULL;
+    }
+
+    if(is_3d_matmul && (a->shape[0] != b->shape[0] || a->shape[2] != b->shape[1] || a->shape[1] != b->shape[2])) {
+        fprintf(stderr, "[Pico] Error: swa_matmul 3D tensors must be [H,S,D] @ [H,D,S]\n");
+        return NULL;
+    }
+
+    if(is_4d_matmul &&
+       (a->shape[0] != b->shape[0] || a->shape[1] != b->shape[1] || a->shape[3] != b->shape[2] ||
+        a->shape[2] != b->shape[3])) {
+        fprintf(stderr, "[Pico] Error: swa_matmul 4D tensors must be [B,H,S,D] @ [B,H,D,S]\n");
+        return NULL;
+    }
+
+    if(!pico_require_same_backend(a, b, "swa_matmul")) {
+        return NULL;
+    }
+
+    struct Arena *arena = pico_context_arena(ctx);
+    if(arena == NULL) {
+        fprintf(stderr, "PicoArenaError: no arena available for swa_matmul allocation\n");
+        return NULL;
+    }
+
+    int ndim = a->ndim;
+    int64_t *res_shape = arena_alloc(arena, sizeof(int64_t) * ndim);
+    if(res_shape == NULL) {
+        return NULL;
+    }
+
+    if(is_3d_matmul) {
+        res_shape[0] = a->shape[0];
+        res_shape[1] = a->shape[1];
+        res_shape[2] = b->shape[2];
+    } else {
+        res_shape[0] = a->shape[0];
+        res_shape[1] = a->shape[1];
+        res_shape[2] = a->shape[2];
+        res_shape[3] = b->shape[3];
+    }
+
+    struct PicoTensor *out = pico_create_tensor_on(ctx, a->backend, res_shape, ndim);
+    if(out == NULL) {
+        return NULL;
+    }
+
+    if(a->backend == PICO_BACKEND_CPU) {
+        pico_swa_matmul_cpu(a, b, out, window);
+    } else if(a->backend == PICO_BACKEND_CUDA) {
+        if(!pico_cuda_swa_matmul(a, b, out, window)) {
+            return NULL;
+        }
+    } else {
+        fprintf(stderr, "PicoBackendError: swa_matmul unknown backend\n");
+        return NULL;
+    }
+
+    out->parents = arena_alloc(arena, sizeof(struct PicoTensor *) * 2);
+    if(out->parents == NULL) {
+        return NULL;
+    }
+    out->parents[0] = a;
+    out->parents[1] = b;
+    out->num_parents = 2;
+    out->op_param = window;
+    out->_backward = pico_swa_matmul_backward;
+
+    return out;
 }
 
 struct PicoTensor *pico_grouped_matmul(struct PicoContext *ctx, struct PicoTensor *a, struct PicoTensor *b,

@@ -19,9 +19,10 @@
   - [x] build a tiny text dataset path: x tokens, y shifted-right tokens.
   - [x] add a simple Gemma-ish decoder block for text only, no MoE, no multimodal.
   - [x] make safetensors save reliable for the full model.
+  - [x] sliding-window attention mask application.
+  - [x] cuda fused causal mask + softmax for normal attention.
+  - [x] cuda fused sliding-window causal mask + softmax, where tokens only attend inside the window boundary.
+  - [x] pico_swa_matmul computes only entries inside the sliding causal window.
+  - [x] finish local/global attention flow, including grouped attention where needed.
 
-  - [ ] finish local/global attention flow, including grouped attention where needed.
-  - [ ] cuda causal and sliding-window attention mask application.
-  - [ ] pico_swa_matmul still just returns the main matmul function
-  - [ ] Add regularizers, start with L2 / weight decay.
   - [ ] train a small model, save it, and upload the checkpoint to Hugging Face.

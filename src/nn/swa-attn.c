@@ -66,9 +66,7 @@ struct PicoTensor *pico_nn_swa_attn_forward(struct PicoContext *ctx, struct Pico
     struct PicoTensor *d_k_saclar = pico_tensor_from_scalar(ctx, (1 / sqrtf(attn->d_k)));
     struct PicoTensor *QK_scaled = pico_mul(ctx, QK_t, d_k_saclar); // (B, num_heads, S, S)
 
-    pico_nn_attn_swa_causal_mask(QK_scaled, attn->swa_window);
-
-    struct PicoTensor *A = pico_softmax(ctx, QK_scaled, input->ndim == 2 ? 2 : 3);
+    struct PicoTensor *A = pico_causal_softmax(ctx, QK_scaled, input->ndim == 2 ? 2 : 3, attn->swa_window);
 
     struct PicoTensor *O = pico_matmul(ctx, A, V); // (B, num_heads, S, d_k)
 
