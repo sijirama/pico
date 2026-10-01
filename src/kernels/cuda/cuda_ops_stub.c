@@ -144,13 +144,15 @@ PICO_WEAK bool pico_cuda_swiglu(struct PicoTensor *x, struct PicoTensor *gate, s
     return pico_cuda_stub_missing("swiglu");
 }
 
-PICO_WEAK bool pico_cuda_fused_swiglu(struct PicoTensor *x, struct PicoTensor *gate, struct PicoTensor *out, float dropout_p,
-                                      bool training) {
-    (void)x;
+PICO_WEAK bool pico_cuda_fused_swiglu(struct PicoTensor *gate, struct PicoTensor *up, struct PicoTensor *mask,
+                                      struct PicoTensor *out, float dropout_p, bool training, uint32_t seed) {
     (void)gate;
+    (void)up;
+    (void)mask;
     (void)out;
     (void)dropout_p;
     (void)training;
+    (void)seed;
     return pico_cuda_stub_missing("fused_swiglu");
 }
 

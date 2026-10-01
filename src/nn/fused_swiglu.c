@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "../act/activations.h"
 #include "../arena.h"
@@ -80,7 +81,8 @@ struct PicoTensor* pico_nn_fused_swiglu(struct PicoContext* ctx, struct PicoTens
             }
         }
     } else if(gate->backend == PICO_BACKEND_CUDA) {
-        if(!pico_cuda_fused_swiglu(gate, up, out, dropout_p, ctx->mode == PICO_TRAIN)) {
+        uint32_t seed = (uint32_t)rand();
+        if(!pico_cuda_fused_swiglu(gate, up, mask, out, dropout_p, ctx->mode == PICO_TRAIN, seed)) {
             return NULL;
         }
     } else {
