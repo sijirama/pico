@@ -20,8 +20,8 @@
   - [x] add a simple Gemma-ish decoder block for text only, no MoE, no multimodal.
   - [x] make safetensors save reliable for the full model.
 
-  - [ ] cuda causal and sliding-window attention mask application.
   - [ ] finish local/global attention flow, including grouped attention where needed.
+  - [ ] cuda causal and sliding-window attention mask application.
   - [ ] pico_swa_matmul still just returns the main matmul function
   - [ ] Add regularizers, start with L2 / weight decay.
   - [ ] train a small model, save it, and upload the checkpoint to Hugging Face.
