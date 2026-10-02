@@ -1,5 +1,7 @@
 #include "ctx.h"
 
+#include <stdio.h>
+
 #include "tensor.h"
 
 // INFO: context owns two arenas for one training/runtime session. temp_arena is
@@ -62,4 +64,31 @@ void pico_context_destroy(struct PicoContext* ctx) {
     if(ctx->arena != NULL) {
         ctx->arena = NULL;
     }
+}
+
+void pico_summary(struct PicoContext* ctx) {
+    if(ctx == NULL) {
+        fprintf(stderr, "PicoSummaryError: received NULL context\n");
+        return;
+    }
+
+    int64_t total_params = 0;
+    printf("\npico summary\n");
+    printf("params: %ld\n", (long)ctx->params.size);
+
+    for(int i = 0; i < ctx->params.size; i++) {
+        struct PicoTensor* param = ctx->params.data[i];
+        if(param == NULL) {
+            continue;
+        }
+
+        total_params += param->numel;
+        printf("  %s shape=[", param->name == NULL ? "<unnamed>" : param->name);
+        for(int d = 0; d < param->ndim; d++) {
+            printf("%ld%s", (long)param->shape[d], d + 1 == param->ndim ? "" : ", ");
+        }
+        printf("] numel=%ld backend=%s\n", (long)param->numel, pico_backend_name(param->backend));
+    }
+
+    printf("total param values: %ld\n", (long)total_params);
 }

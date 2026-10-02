@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "pico.h"
-#include "tokens/tokenizer.h"
 
 #define TINYSTORIES_DEFAULT_TRAIN_PATH "datasets/tinystories/train_5mb.txt"
 #define TINYSTORIES_DEFAULT_VALID_PATH "datasets/tinystories/valid_1mb.txt"

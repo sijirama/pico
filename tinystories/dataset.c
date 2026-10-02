@@ -4,10 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "arena.h"
-#include "tokens/bpe-tk.h"
-
-static void tinystories_strip_newline(char* line) {
+static void tinystories_strip_newline(char *line) {
     size_t len = strlen(line);
     while(len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
         line[len - 1] = '\0';
@@ -15,9 +12,9 @@ static void tinystories_strip_newline(char* line) {
     }
 }
 
-static char* tinystories_arena_strdup(struct PicoContext* ctx, const char* text) {
+static char *tinystories_arena_strdup(struct PicoContext *ctx, const char *text) {
     size_t len = strlen(text);
-    char* copy = arena_alloc(ctx->arena, len + 1);
+    char *copy = arena_alloc(ctx->arena, len + 1);
     if(copy == NULL) {
         return NULL;
     }
@@ -26,7 +23,7 @@ static char* tinystories_arena_strdup(struct PicoContext* ctx, const char* text)
     return copy;
 }
 
-static size_t tinystories_count_rows(FILE* file, size_t max_rows) {
+static size_t tinystories_count_rows(FILE *file, size_t max_rows) {
     char line[4096];
     size_t rows = 0;
 
@@ -46,19 +43,19 @@ static size_t tinystories_count_rows(FILE* file, size_t max_rows) {
     return rows;
 }
 
-static size_t tinystories_dataset_len(const struct Dataset* dataset) {
-    const struct TinyStoriesDataset* data = (const struct TinyStoriesDataset*)dataset->data;
+static size_t tinystories_dataset_len(const struct Dataset *dataset) {
+    const struct TinyStoriesDataset *data = (const struct TinyStoriesDataset *)dataset->data;
     return data == NULL ? 0 : data->len;
 }
 
-static struct DatasetItem tinystories_dataset_get(const struct Dataset* dataset, size_t idx) {
+static struct DatasetItem tinystories_dataset_get(const struct Dataset *dataset, size_t idx) {
     struct DatasetItem item = {0};
-    struct TinyStoriesDataset* data = (struct TinyStoriesDataset*)dataset->data;
+    struct TinyStoriesDataset *data = (struct TinyStoriesDataset *)dataset->data;
     if(data == NULL || data->tokenizer == NULL || idx >= data->len) {
         return item;
     }
 
-    size_t* ids = data->tokenizer->methods->encode(data->tokenizer, data->texts[idx]);
+    size_t *ids = data->tokenizer->methods->encode(data->tokenizer, data->texts[idx]);
     if(ids == NULL) {
         return item;
     }
@@ -77,8 +74,8 @@ static struct DatasetItem tinystories_dataset_get(const struct Dataset* dataset,
         sample_len = (size_t)data->max_seq_len;
     }
 
-    float* x_values = arena_alloc(data->ctx->arena, sizeof(float) * sample_len);
-    float* y_values = arena_alloc(data->ctx->arena, sizeof(float) * sample_len);
+    float *x_values = arena_alloc(data->ctx->arena, sizeof(float) * sample_len);
+    float *y_values = arena_alloc(data->ctx->arena, sizeof(float) * sample_len);
     if(x_values == NULL || y_values == NULL) {
         return item;
     }
@@ -94,7 +91,7 @@ static struct DatasetItem tinystories_dataset_get(const struct Dataset* dataset,
     return item;
 }
 
-static void tinystories_dataset_vtable_free(struct Dataset* dataset) {
+static void tinystories_dataset_vtable_free(struct Dataset *dataset) {
     (void)dataset;
 }
 
@@ -104,12 +101,12 @@ static const struct DatasetVTable TINYSTORIES_DATASET_FUNCS = {
     .free = tinystories_dataset_vtable_free,
 };
 
-static void tinystories_free_bpe_heap_state(struct Tokenizer* tokenizer) {
+static void tinystories_free_bpe_heap_state(struct Tokenizer *tokenizer) {
     if(tokenizer == NULL || tokenizer->data == NULL) {
         return;
     }
 
-    struct BPEPicoTKData* data = (struct BPEPicoTKData*)tokenizer->data;
+    struct BPEPicoTKData *data = (struct BPEPicoTKData *)tokenizer->data;
     pico_hashmap_free(data->corpus);
     pico_hashmap_free(data->token_to_id);
 
@@ -141,8 +138,7 @@ struct TinyStoriesDatasetConfig tinystories_default_config(void) {
     return config;
 }
 
-bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesDataset* out,
-                                 struct TinyStoriesDatasetConfig config) {
+bool tinystories_dataset_prepare(struct PicoContext *ctx, struct TinyStoriesDataset *out, struct TinyStoriesDatasetConfig config) {
     if(ctx == NULL || out == NULL || config.path == NULL || config.batch_size == 0) {
         return false;
     }
@@ -151,7 +147,7 @@ bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesData
     out->ctx = ctx;
     out->max_seq_len = config.max_seq_len;
 
-    FILE* file = fopen(config.path, "r");
+    FILE *file = fopen(config.path, "r");
     if(file == NULL) {
         fprintf(stderr, "TinyStoriesDatasetError: could not open %s\n", config.path);
         return false;
@@ -164,7 +160,7 @@ bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesData
         return false;
     }
 
-    out->texts = arena_alloc(ctx->arena, sizeof(char*) * rows);
+    out->texts = arena_alloc(ctx->arena, sizeof(char *) * rows);
     if(out->texts == NULL) {
         fclose(file);
         return false;
@@ -176,7 +172,7 @@ bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesData
         return false;
     }
 
-    struct BPEPicoTKData* bpe_data = (struct BPEPicoTKData*)out->tokenizer->data;
+    struct BPEPicoTKData *bpe_data = (struct BPEPicoTKData *)out->tokenizer->data;
     if(config.max_vocab_size > 0) {
         bpe_data->max_vocab_capacity = config.max_vocab_size;
     }
@@ -190,7 +186,7 @@ bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesData
         }
 
         out->texts[row] = tinystories_arena_strdup(ctx, line);
-        char* train_copy = tinystories_arena_strdup(ctx, line);
+        char *train_copy = tinystories_arena_strdup(ctx, line);
         if(out->texts[row] == NULL || train_copy == NULL) {
             fclose(file);
             return false;
@@ -215,7 +211,7 @@ bool tinystories_dataset_prepare(struct PicoContext* ctx, struct TinyStoriesData
     return true;
 }
 
-void tinystories_dataset_reset(struct TinyStoriesDataset* dataset) {
+void tinystories_dataset_reset(struct TinyStoriesDataset *dataset) {
     if(dataset == NULL || dataset->loader == NULL) {
         return;
     }
@@ -223,7 +219,7 @@ void tinystories_dataset_reset(struct TinyStoriesDataset* dataset) {
     pico_dataloader_reset(dataset->loader);
 }
 
-void tinystories_dataset_free(struct TinyStoriesDataset* dataset) {
+void tinystories_dataset_free(struct TinyStoriesDataset *dataset) {
     if(dataset == NULL) {
         return;
     }

@@ -6,40 +6,38 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "act/activations.h"
-#include "arena.h"
-#include "loss/loss.h"
-#include "nn/attn.h"
-#include "nn/embedding.h"
-#include "nn/linear.h"
-#include "norm/norm.h"
-#include "optim/optim.h"
-#include "safetensor/st.h"
-#include "tokens/bpe-tk.h"
-
 #define TINYSTORIES_SMOKE_STEPS 12
+#define TINYSTORIES_EMBED_DIM 8
+#define TINYSTORIES_NUM_HEADS 4
+#define TINYSTORIES_HEAD_DIM 2
+#define TINYSTORIES_GQA_GROUP_SIZE 2
+#define TINYSTORIES_SWA_WINDOW 4
+#define TINYSTORIES_FFN_DIM 24
+#define TINYSTORIES_DROPOUT_P 0.10f
 
 struct TinyStoriesCpuSmokeModel {
-    struct PicoEmbedding* tok_emb;
-    struct PicoRMSNorm* norm_local_0;
-    struct PicoAttn* local_0;
-    struct PicoRMSNorm* norm_local_1;
-    struct PicoAttn* local_1;
-    struct PicoRMSNorm* norm_global;
-    struct PicoAttn* global;
-    struct PicoRMSNorm* norm_ffn;
-    struct PicoLinear* ffn_up;
-    struct PicoLinear* ffn_gate;
-    struct PicoLinear* ffn_down;
-    struct PicoLinear* lm_head;
+    struct PicoEmbedding *tok_emb;
+    struct PicoRMSNorm *norm_local_0;
+    struct PicoAttn *local_0;
+    struct PicoRMSNorm *norm_local_1;
+    struct PicoAttn *local_1;
+    struct PicoRMSNorm *norm_global;
+    struct PicoAttn *global;
+    struct PicoRMSNorm *norm_ffn;
+    struct PicoLinear *ffn_up;
+    struct PicoLinear *ffn_gate;
+    struct PicoLinear *ffn_down;
+    struct PicoRMSNorm *final_norm;
+    struct PicoLinear *lm_head;
+    float dropout_p;
 };
 
-static bool set_tensor_name(struct PicoContext* ctx, struct PicoTensor* tensor, const char* name) {
+static bool set_tensor_name(struct PicoContext *ctx, struct PicoTensor *tensor, const char *name) {
     if(ctx == NULL || tensor == NULL || name == NULL) {
         return false;
     }
 
-    struct Arena* arena = pico_context_param_arena(ctx);
+    struct Arena *arena = pico_context_param_arena(ctx);
     if(arena == NULL) {
         return false;
     }
@@ -54,9 +52,9 @@ static bool set_tensor_name(struct PicoContext* ctx, struct PicoTensor* tensor, 
     return true;
 }
 
-static void seed_model_params(struct PicoContext* ctx) {
+static void seed_model_params(struct PicoContext *ctx) {
     for(int p = 0; p < ctx->params.size; p++) {
-        struct PicoTensor* tensor = ctx->params.data[p];
+        struct PicoTensor *tensor = ctx->params.data[p];
         if(tensor == NULL || tensor->data == NULL) {
             continue;
         }
@@ -77,69 +75,97 @@ static void seed_model_params(struct PicoContext* ctx) {
     }
 }
 
-static struct TinyStoriesCpuSmokeModel model_init(struct PicoContext* ctx, int vocab_size) {
+static struct TinyStoriesCpuSmokeModel model_init(struct PicoContext *ctx, int vocab_size) {
     struct TinyStoriesCpuSmokeModel model = {0};
+    model.dropout_p = TINYSTORIES_DROPOUT_P;
 
-    model.tok_emb = pico_embedding_init(ctx, vocab_size, 8);
+    model.tok_emb = pico_embedding_init(ctx, vocab_size, TINYSTORIES_EMBED_DIM);
     if(model.tok_emb != NULL) {
         set_tensor_name(ctx, model.tok_emb->table, "tiny.embed.weight");
     }
 
-    model.norm_local_0 = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.local.0.norm", 8, 1e-5f);
-    model.local_0 = pico_nn_swa_attn_init(ctx, "tiny.blocks.0.local.0.attn", 8, 2, 4, 4);
-    model.norm_local_1 = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.local.1.norm", 8, 1e-5f);
-    model.local_1 = pico_nn_swa_attn_init(ctx, "tiny.blocks.0.local.1.attn", 8, 2, 4, 4);
-    model.norm_global = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.global.norm", 8, 1e-5f);
-    model.global = pico_nn_attn_init(ctx, "tiny.blocks.0.global.attn", 8, 2, 4);
-    model.norm_ffn = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.ffn.norm", 8, 1e-5f);
-    model.ffn_up = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.up", 8, 24, true);
-    model.ffn_gate = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.gate", 8, 24, true);
-    model.ffn_down = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.down", 24, 8, true);
-    model.lm_head = pico_nn_linear_init(ctx, "tiny.lm_head", 8, vocab_size, true);
+    model.norm_local_0 = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.local.0.norm", TINYSTORIES_EMBED_DIM, 1e-5f);
+    model.local_0 = pico_nn_swa_attn_init(ctx,
+                                          "tiny.blocks.0.local.0.attn",
+                                          TINYSTORIES_EMBED_DIM,
+                                          TINYSTORIES_NUM_HEADS,
+                                          TINYSTORIES_HEAD_DIM,
+                                          TINYSTORIES_SWA_WINDOW);
+    model.norm_local_1 = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.local.1.norm", TINYSTORIES_EMBED_DIM, 1e-5f);
+    model.local_1 = pico_nn_swa_attn_init(ctx,
+                                          "tiny.blocks.0.local.1.attn",
+                                          TINYSTORIES_EMBED_DIM,
+                                          TINYSTORIES_NUM_HEADS,
+                                          TINYSTORIES_HEAD_DIM,
+                                          TINYSTORIES_SWA_WINDOW);
+    model.norm_global = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.global.norm", TINYSTORIES_EMBED_DIM, 1e-5f);
+    model.global = pico_nn_gqa_attn_init(ctx,
+                                         "tiny.blocks.0.global.attn",
+                                         TINYSTORIES_EMBED_DIM,
+                                         TINYSTORIES_NUM_HEADS,
+                                         TINYSTORIES_HEAD_DIM,
+                                         TINYSTORIES_GQA_GROUP_SIZE);
+    model.norm_ffn = pico_nn_rmsnorm_init(ctx, "tiny.blocks.0.ffn.norm", TINYSTORIES_EMBED_DIM, 1e-5f);
+    model.ffn_up = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.up", TINYSTORIES_EMBED_DIM, TINYSTORIES_FFN_DIM, true);
+    model.ffn_gate = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.gate", TINYSTORIES_EMBED_DIM, TINYSTORIES_FFN_DIM, true);
+    model.ffn_down = pico_nn_linear_init(ctx, "tiny.blocks.0.ffn.down", TINYSTORIES_FFN_DIM, TINYSTORIES_EMBED_DIM, true);
+    model.final_norm = pico_nn_rmsnorm_init(ctx, "tiny.final_norm", TINYSTORIES_EMBED_DIM, 1e-5f);
+    model.lm_head = pico_nn_linear_init(ctx, "tiny.lm_head", TINYSTORIES_EMBED_DIM, vocab_size, true);
 
     seed_model_params(ctx);
     return model;
 }
 
-static bool model_is_valid(struct TinyStoriesCpuSmokeModel* model) {
+static bool model_is_valid(struct TinyStoriesCpuSmokeModel *model) {
     return model != NULL && model->tok_emb != NULL && model->norm_local_0 != NULL && model->local_0 != NULL &&
-           model->norm_local_1 != NULL && model->local_1 != NULL && model->norm_global != NULL &&
-           model->global != NULL && model->norm_ffn != NULL && model->ffn_up != NULL &&
-           model->ffn_gate != NULL && model->ffn_down != NULL && model->lm_head != NULL;
+           model->norm_local_1 != NULL && model->local_1 != NULL && model->norm_global != NULL && model->global != NULL &&
+           model->norm_ffn != NULL && model->ffn_up != NULL && model->ffn_gate != NULL && model->ffn_down != NULL &&
+           model->final_norm != NULL && model->lm_head != NULL;
 }
 
-static struct PicoTensor* model_forward(
-    struct PicoContext* ctx,
-    struct TinyStoriesCpuSmokeModel* model,
-    struct PicoTensor* tokens) {
-    struct PicoTensor* h = pico_embedding_apply(ctx, model->tok_emb, tokens);
+static struct PicoTensor *checked_residual_add(struct PicoContext *ctx, struct PicoTensor *residual, struct PicoTensor *update) {
+    if(residual == NULL || update == NULL) {
+        return NULL;
+    }
+
+    return pico_add(ctx, residual, update);
+}
+
+static struct PicoTensor *model_forward(struct PicoContext *ctx, struct TinyStoriesCpuSmokeModel *model, struct PicoTensor *tokens) {
+    struct PicoTensor *h = pico_embedding_apply(ctx, model->tok_emb, tokens);
     if(h == NULL) {
         return NULL;
     }
 
-    struct PicoTensor* x = pico_nn_rmsnorm_forward(ctx, model->norm_local_0, h);
-    struct PicoTensor* local = pico_nn_swa_attn_forward(ctx, model->local_0, x);
-    h = pico_add(ctx, h, local);
+    int64_t batched_shape[] = {1, h->shape[0], h->shape[1]};
+    pico_view(ctx, h, batched_shape, 3);
+
+    struct PicoTensor *x = pico_nn_rmsnorm_forward(ctx, model->norm_local_0, h);
+    struct PicoTensor *local = pico_nn_swa_attn_forward(ctx, model->local_0, x);
+    h = checked_residual_add(ctx, h, local);
 
     x = pico_nn_rmsnorm_forward(ctx, model->norm_local_1, h);
     local = pico_nn_swa_attn_forward(ctx, model->local_1, x);
-    h = pico_add(ctx, h, local);
+    h = checked_residual_add(ctx, h, local);
 
     x = pico_nn_rmsnorm_forward(ctx, model->norm_global, h);
-    struct PicoTensor* global = pico_nn_attn_forward(ctx, model->global, x);
-    h = pico_add(ctx, h, global);
+    struct PicoTensor *global = pico_nn_gqa_attn_forward(ctx, model->global, x);
+    h = checked_residual_add(ctx, h, global);
 
     x = pico_nn_rmsnorm_forward(ctx, model->norm_ffn, h);
-    struct PicoTensor* up = pico_nn_linear_forward(ctx, model->ffn_up, x);
-    struct PicoTensor* gate = pico_nn_linear_forward(ctx, model->ffn_gate, x);
-    struct PicoTensor* hidden = pico_swiglu(ctx, up, gate);
-    struct PicoTensor* ffn_out = pico_nn_linear_forward(ctx, model->ffn_down, hidden);
-    h = pico_add(ctx, h, ffn_out);
+    struct PicoTensor *up = pico_nn_linear_forward(ctx, model->ffn_up, x);
+    struct PicoTensor *gate = pico_nn_linear_forward(ctx, model->ffn_gate, x);
+    struct PicoTensor *hidden = pico_swiglu(ctx, up, gate);
+    hidden = pico_dropout(ctx, hidden, model->dropout_p);
+    struct PicoTensor *ffn_out = pico_nn_linear_forward(ctx, model->ffn_down, hidden);
+    h = checked_residual_add(ctx, h, ffn_out);
+
+    h = pico_nn_rmsnorm_forward(ctx, model->final_norm, h);
 
     return pico_nn_linear_forward(ctx, model->lm_head, h);
 }
 
-static void model_free(struct TinyStoriesCpuSmokeModel* model) {
+static void model_free(struct TinyStoriesCpuSmokeModel *model) {
     if(model == NULL) {
         return;
     }
@@ -154,24 +180,13 @@ static void model_free(struct TinyStoriesCpuSmokeModel* model) {
     pico_nn_linear_free(model->ffn_up);
     pico_nn_linear_free(model->ffn_gate);
     pico_nn_linear_free(model->ffn_down);
+    pico_nn_rmsnorm_free(model->final_norm);
     pico_nn_linear_free(model->lm_head);
 }
 
-static void print_param_summary(struct PicoContext* ctx) {
-    printf("\nsaved params: %ld\n", (long)ctx->params.size);
-    for(int i = 0; i < ctx->params.size; i++) {
-        struct PicoTensor* param = ctx->params.data[i];
-        printf("  %s shape=[", param->name == NULL ? "<unnamed>" : param->name);
-        for(int d = 0; d < param->ndim; d++) {
-            printf("%ld%s", (long)param->shape[d], d + 1 == param->ndim ? "" : ", ");
-        }
-        printf("] numel=%ld\n", (long)param->numel);
-    }
-}
-
 int main(void) {
-    const char* save_path = "tinystories_cpu_smoke.safetensors";
-    struct PicoContext* ctx = pico_init_verbose(false);
+    const char *save_path = "tinystories_cpu_smoke.safetensors";
+    struct PicoContext *ctx = pico_init_verbose(false);
     if(ctx == NULL) {
         fprintf(stderr, "failed to create pico context\n");
         return 1;
@@ -193,8 +208,8 @@ int main(void) {
     int vocab_size = (int)dataset.tokenizer->methods->len(dataset.tokenizer);
     printf("tinystories cpu smoke\n");
     printf("dataset: %s\n", config.path);
-    printf("rows: %ld | vocab: %d | seq_len: %d | steps: %d\n\n",
-           (long)dataset.len, vocab_size, config.max_seq_len, TINYSTORIES_SMOKE_STEPS);
+    printf("rows: %ld | vocab: %d | seq_len: %d | steps: %d\n", (long)dataset.len, vocab_size, config.max_seq_len, TINYSTORIES_SMOKE_STEPS);
+    printf("model: embed -> 1 x [swa + swa + gqa + swiglu/dropout ffn] -> final rmsnorm -> lm head\n\n");
 
     struct TinyStoriesCpuSmokeModel model = model_init(ctx, vocab_size);
     if(!model_is_valid(&model)) {
@@ -204,7 +219,7 @@ int main(void) {
         return 1;
     }
 
-    struct PicoOptimAdamW* optim = pico_optim_adamw_init(0.005f, 0.0f);
+    struct PicoOptimAdamW *optim = pico_optim_adamw_init(0.005f, 0.0f);
     struct PicoCrossEntropyLoss ce = {.reduction = PICO_CE_MEAN};
     if(optim == NULL) {
         model_free(&model);
@@ -217,7 +232,7 @@ int main(void) {
     float last_loss = 0.0f;
 
     for(int step = 0; step < TINYSTORIES_SMOKE_STEPS; step++) {
-        struct DataBatch* batch = pico_dataloader_next(dataset.loader);
+        struct DataBatch *batch = pico_dataloader_next(dataset.loader);
         if(batch == NULL || batch->size == 0 || batch->items[0].x == NULL || batch->items[0].y == NULL) {
             tinystories_dataset_reset(&dataset);
             batch = pico_dataloader_next(dataset.loader);
@@ -227,8 +242,14 @@ int main(void) {
             break;
         }
 
-        struct PicoTensor* logits = model_forward(ctx, &model, batch->items[0].x);
-        struct PicoTensor* loss = pico_cross_entropy_loss(ctx, &ce, logits, batch->items[0].y);
+        struct PicoTensor *target = batch->items[0].y;
+        if(target->ndim == 1) {
+            int64_t target_shape[] = {1, target->shape[0]};
+            pico_view(ctx, target, target_shape, 2);
+        }
+
+        struct PicoTensor *logits = model_forward(ctx, &model, batch->items[0].x);
+        struct PicoTensor *loss = pico_cross_entropy_loss(ctx, &ce, logits, target);
         if(loss == NULL || !isfinite(loss->data[0])) {
             fprintf(stderr, "training produced invalid loss\n");
             break;
@@ -249,9 +270,9 @@ int main(void) {
     printf("\nfirst loss: %.6f\n", first_loss);
     printf("last loss:  %.6f\n", last_loss);
 
-    save_tensor(ctx, (char*)save_path);
+    save_tensor(ctx, (char *)save_path);
     printf("\nsaved smoke checkpoint to %s\n", save_path);
-    print_param_summary(ctx);
+    pico_summary(ctx);
 
     pico_optim_adamw_free(optim);
     model_free(&model);

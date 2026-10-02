@@ -23,3 +23,4 @@ struct Arena *pico_context_param_arena(struct PicoContext *ctx);
 struct Arena *pico_context_arena(struct PicoContext *ctx);
 void pico_context_register_param(struct PicoContext *ctx, struct PicoTensor *param);
 void pico_context_destroy(struct PicoContext *ctx);
+void pico_summary(struct PicoContext *ctx);
